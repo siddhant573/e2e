@@ -30,7 +30,7 @@ export function evidenceReporter(options: ResolvedEvidence): Reporter {
       try {
         // The directory holds the latest run's pack only, as artifacts/ holds the latest run's files.
         await removePacks(options.outDir);
-        await writePack(planPack(report), packDir, { projectRoot: run.projectRoot, artifactsRoot: run.artifactsRoot }, signal);
+        await writePack(planPack(report), packDir, { artifactsRoot: run.artifactsRoot }, signal);
         signal.throwIfAborted();
         // The seal cannot be interrupted midway; a cancelled reporter stops waiting, and the catch removes the pack.
         const sealed = await withAbort(sealPack(packDir, report.run.finishedAt, options.profile), signal, () => new Error('the run stopped waiting for the pack'));

@@ -25,7 +25,7 @@ function roots() {
   return { base, projectRoot, artifactsRoot };
 }
 
-function plan(overrides: { failureShot?: string; source?: string; steps?: boolean } = {}): PackPlan {
+function plan(overrides: { failureShot?: string; steps?: boolean } = {}): PackPlan {
   const steps = overrides.steps === false
     ? []
     : [
@@ -47,12 +47,12 @@ function plan(overrides: { failureShot?: string; source?: string; steps?: boolea
     coverage: { summary: {} },
     tests: [{
       dir: 'a-00000001',
-      definition: { source: overrides.source ?? 'tests/a.e2e.ts', name: 'a.e2e.ts' },
+      definition: { name: 'test.json', content: '{"e2e_test_id":"tests/a.e2e.ts::a"}\n' },
       result: {
         evidence: '0.1',
         test: 'a-00000001',
         status: overrides.steps === false ? 'skipped' : 'failed',
-        definition: { path: 'a.e2e.ts' },
+        definition: { path: 'test.json' },
         steps: overrides.steps === false ? [] : [{ id: '0-0', ordinal: 1, status: 'passed' }, { id: '0-1', ordinal: 2, status: 'failed' }],
       },
       steps,
@@ -66,9 +66,9 @@ function plan(overrides: { failureShot?: string; source?: string; steps?: boolea
 
 describe('writePack and sealPack', () => {
   it('writes a pack the evidence library seals and validates at L1', async () => {
-    const { base, projectRoot, artifactsRoot } = roots();
+    const { base, artifactsRoot } = roots();
     const dir = path.join(base, 'out', 'r1.evidence');
-    await writePack(plan(), dir, { projectRoot, artifactsRoot });
+    await writePack(plan(), dir, { artifactsRoot });
     expect(readFileSync(path.join(dir, 'tests', 'a-00000001', 'steps', '1-0-0', 'screenshot.png'), 'utf8')).toBe('png');
     const sealed = await sealPack(dir, '2026-10-02T00:01:00.000Z', 'L1');
     expect(sealed.diagnostics.filter((diagnostic) => diagnostic.severity === 'error')).toEqual([]);
@@ -77,9 +77,9 @@ describe('writePack and sealPack', () => {
   });
 
   it('declares no log and references no frame whose file is gone', async () => {
-    const { base, projectRoot, artifactsRoot } = roots();
+    const { base, artifactsRoot } = roots();
     const dir = path.join(base, 'out', 'r2.evidence');
-    await writePack(plan({ failureShot: 'web/t/screenshots/missing.png' }), dir, { projectRoot, artifactsRoot });
+    await writePack(plan({ failureShot: 'web/t/screenshots/missing.png' }), dir, { artifactsRoot });
     const meta = JSON.parse(readFileSync(path.join(dir, 'tests', 'a-00000001', 'logs', 'meta.yaml'), 'utf8')) as { logs: { name: string }[] };
     expect(meta.logs.map((log) => log.name)).toEqual(['steps']);
     const failure = JSON.parse(readFileSync(path.join(dir, 'tests', 'a-00000001', 'steps', '2-0-1', 'failure.yaml'), 'utf8')) as { page_state: object };
@@ -87,30 +87,29 @@ describe('writePack and sealPack', () => {
     expect((await sealPack(dir, '2026-10-02T00:01:00.000Z', 'L1')).valid).toBe(true);
   });
 
-  it('copies nothing from outside its roots', async () => {
-    const { base, projectRoot, artifactsRoot } = roots();
+  it('copies nothing from outside the artifacts root, and writes the definition it was given rather than a source file', async () => {
+    const { base, artifactsRoot } = roots();
     writeFileSync(path.join(base, 'secret.txt'), 'outside');
     const dir = path.join(base, 'out', 'r3.evidence');
-    await writePack(plan({ source: '../secret.txt', failureShot: '../../../secret.txt' }), dir, { projectRoot, artifactsRoot });
-    expect(existsSync(path.join(dir, 'tests', 'a-00000001', 'a.e2e.ts'))).toBe(false);
+    await writePack(plan({ failureShot: '../../../secret.txt' }), dir, { artifactsRoot });
     expect(existsSync(path.join(dir, 'tests', 'a-00000001', 'steps', '2-0-1', 'screenshot.txt'))).toBe(false);
-    const result = JSON.parse(readFileSync(path.join(dir, 'tests', 'a-00000001', 'result.yaml'), 'utf8')) as object;
-    expect(result).not.toHaveProperty('definition');
+    expect(readFileSync(path.join(dir, 'tests', 'a-00000001', 'test.json'), 'utf8')).toContain('tests/a.e2e.ts::a');
+    expect(existsSync(path.join(dir, 'tests', 'a-00000001', 'a.e2e.ts'))).toBe(false);
   });
 
   it('keeps the steps folder of a test that ran none, so the sealed pack still has it', async () => {
-    const { base, projectRoot, artifactsRoot } = roots();
+    const { base, artifactsRoot } = roots();
     const dir = path.join(base, 'out', 'r4.evidence');
-    await writePack(plan({ steps: false }), dir, { projectRoot, artifactsRoot });
+    await writePack(plan({ steps: false }), dir, { artifactsRoot });
     const sealed = await sealPack(dir, '2026-10-02T00:01:00.000Z', 'L1');
     expect(sealed.diagnostics.filter((diagnostic) => diagnostic.severity === 'error')).toEqual([]);
   });
 
   it('fails loudly when it cannot write into the pack, rather than dropping the file', async () => {
-    const { base, projectRoot, artifactsRoot } = roots();
+    const { base, artifactsRoot } = roots();
     const dir = path.join(base, 'out', 'r5.evidence');
-    // A directory where the definition file must go makes the copy itself fail.
-    mkdirSync(path.join(dir, 'tests', 'a-00000001', 'a.e2e.ts'), { recursive: true });
-    await expect(writePack(plan(), dir, { projectRoot, artifactsRoot })).rejects.toThrow();
+    // A directory where the definition file must go makes writing it fail.
+    mkdirSync(path.join(dir, 'tests', 'a-00000001', 'test.json'), { recursive: true });
+    await expect(writePack(plan(), dir, { artifactsRoot })).rejects.toThrow();
   });
 });

@@ -200,7 +200,16 @@ describe('planPack: identity and steps', () => {
       expect.objectContaining({ id: '2-1', ordinal: 2, kind: 'locator.tap' }),
     ]);
     expect(plan.tests[0]!.steps.map((entry) => entry.folder)).toEqual(['1-2-0', '2-2-1']);
-    expect(plan.tests[0]!.definition).toEqual({ source: 'tests/a.e2e.ts', name: 'a.e2e.ts' });
+    // The definition is the test's identity from the report, never its source file: source can hold a secret as plain text.
+    expect(plan.tests[0]!.definition.name).toBe('test.json');
+    expect(JSON.parse(plan.tests[0]!.definition.content)).toEqual({
+      e2e_test_id: 'tests/a.e2e.ts::saves',
+      title: ['saves'],
+      file: 'tests/a.e2e.ts',
+      line: 1,
+      tags: [],
+    });
+    expect(plan.tests[0]!.result['definition']).toEqual({ path: 'test.json' });
   });
 
   it('copies a step screenshot only when it is masked, and never a video, download, or incomplete trace', () => {

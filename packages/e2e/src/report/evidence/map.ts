@@ -19,6 +19,8 @@ const EVIDENCE_VERSION = '0.1';
 const PRODUCT_DEFECT_CODES: ReadonlySet<string> = new Set(['ASSERTION_FAILED']);
 /** Redaction levels whose files are safe to copy into a pack a reader may share. */
 const SHAREABLE: ReadonlySet<string> = new Set(['complete', 'not-required']);
+/** The definition file each test folder holds. */
+const DEFINITION_FILE = 'test.json';
 
 type Verdict = 'passed' | 'failed' | 'broken' | 'skipped';
 type Json = Record<string, unknown>;
@@ -34,8 +36,12 @@ export interface PackPlan {
 export interface TestPlan {
   /** The folder under `tests/`, also `result.yaml`'s `test`. */
   readonly dir: string;
-  /** The test file, project-relative, copied as the opaque definition under `name`. */
-  readonly definition: { readonly source: string; readonly name: string };
+  /**
+   * The opaque definition the format hashes: the test's identity from the
+   * report (id, title path, file, line, tags), written as `name`. Never the
+   * test's source, which can hold a secret value as a plain string.
+   */
+  readonly definition: { readonly name: string; readonly content: string };
   readonly result: Json;
   readonly steps: readonly StepPlan[];
   readonly logs: readonly LogPlan[];
@@ -138,12 +144,12 @@ function planTest(report: Report1Document, result: ReportResult, name: string): 
   const attempts = attemptsOf(report, result);
   return {
     dir,
-    definition: { source: result.file, name: path.posix.basename(result.file) },
+    definition: { name: DEFINITION_FILE, content: `${JSON.stringify(definitionOf(result), null, 2)}\n` },
     result: {
       evidence: EVIDENCE_VERSION,
       test: dir,
       status: resultVerdict(result, execution),
-      definition: { path: path.posix.basename(result.file) },
+      definition: { path: DEFINITION_FILE },
       // `session_name` is what the viewer lists the test as and heads it with.
       external_id: { session_name: name, e2e_test_id: result.testId, e2e_result_id: result.id, target: result.targetId, agent: result.agent, repeat: result.repeat },
       duration_ms: attempts.reduce((total, attempt) => total + attempt.duration_ms, 0),
@@ -156,6 +162,11 @@ function planTest(report: Report1Document, result: ReportResult, name: string): 
     steps: steps.map((entry) => entry.plan),
     logs: logsFor(execution, artifacts),
   };
+}
+
+/** What the test is, from the report alone, whose titles and ids the runner already redacted. */
+function definitionOf(result: ReportResult): Json {
+  return { e2e_test_id: result.testId, title: result.titlePath, file: result.file, line: result.source.line, tags: result.tags };
 }
 
 /**
