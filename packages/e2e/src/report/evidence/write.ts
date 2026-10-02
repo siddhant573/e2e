@@ -1,10 +1,9 @@
 /**
  * Puts a planned pack on disk as a live `.evidence` directory. YAML files are
- * written as JSON, which is YAML. Every copied file comes from a report path
- * the runner generated, resolved under its root and refused outside it; a
- * file that is gone (a deleted recording, an unreadable test file) is left
- * out together with every reference to it, so the pack never names a file it
- * does not hold.
+ * written as JSON, which is YAML. Every copied file is an artifact the report
+ * names, resolved under the artifacts root and refused outside it; one that is
+ * gone (a deleted recording) is left out together with every reference to it,
+ * so the pack never names a file it does not hold.
  */
 
 import { constants } from 'node:fs';
@@ -13,7 +12,6 @@ import path from 'node:path';
 import type { LogPlan, PackPlan, StepPlan, TestPlan } from './map.ts';
 
 export interface PackRoots {
-  readonly projectRoot: string;
   readonly artifactsRoot: string;
 }
 
@@ -32,7 +30,7 @@ export async function writePack(plan: PackPlan, packDir: string, roots: PackRoot
 /** One test folder: definition, steps, logs and their meta, then `result.yaml`. */
 async function writeTest(test: TestPlan, dir: string, roots: PackRoots): Promise<void> {
   await mkdir(path.join(dir, 'steps'), { recursive: true });
-  const definition = await copyInside(roots.projectRoot, test.definition.source, path.join(dir, test.definition.name));
+  await writeFile(path.join(dir, test.definition.name), test.definition.content);
   if (test.steps.length === 0) await writeFile(path.join(dir, 'steps', '.keep'), '');
   for (const step of test.steps) await writeStep(step, path.join(dir, 'steps', step.folder), roots);
 
@@ -41,8 +39,7 @@ async function writeTest(test: TestPlan, dir: string, roots: PackRoots): Promise
     if (await writeLog(log, path.join(dir, 'logs'), roots)) logs.push({ name: log.name, file: log.file, format: log.format });
   }
   await writeJson(path.join(dir, 'logs', 'meta.yaml'), { logs });
-  const result = definition ? test.result : withoutKey(test.result, 'definition');
-  await writeJson(path.join(dir, 'result.yaml'), result);
+  await writeJson(path.join(dir, 'result.yaml'), test.result);
 }
 
 /** One step folder; a failure record drops each page-state reference whose file was not copied. */
