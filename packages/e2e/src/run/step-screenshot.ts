@@ -68,13 +68,16 @@ export async function captureStepScreenshot(options: StepScreenshotOptions): Pro
     options.steps.attachArtifact(options.artifacts.register('screenshot', relative));
   } catch (cause) {
     abandoned = true;
+    const code = classifyError(cause).code;
+    // Before the app is open there is no screen to capture, which is not a failed capture.
+    if (code === 'APP_NOT_OPEN') return;
     options.steps.recordEvent({
       kind: 'engine',
       name: 'step.screenshot',
       status: 'failed',
       startedAt,
       durationMs: Date.now() - startedMs,
-      code: classifyError(cause).code,
+      code,
     });
   }
 }
