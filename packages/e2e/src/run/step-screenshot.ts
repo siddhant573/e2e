@@ -7,7 +7,7 @@
  * step records the denial instead, as `agent.assert` does.
  */
 
-import { rm } from 'node:fs/promises';
+import { open, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { recordPolicyEvent } from '../agent/phases.ts';
 import type { OperationContext, TargetSession } from '../engine/surface.ts';
@@ -51,21 +51,24 @@ export async function captureStepScreenshot(options: StepScreenshotOptions): Pro
   let abandoned = false;
   try {
     const operation = options.operation(signal, options.timeoutMs);
-    const capture = session.artifacts.screenshot(`step-${record.index}`, operation);
+    const capture = session.artifacts.capture(`step-${record.index}`, operation);
     // Given up on, the capture may still land later: nobody registers that file, so it goes.
-    void capture.then((late) => (abandoned ? discard(options.artifacts, late) : undefined), () => undefined);
-    const relative = await withTimeout(
+    void capture.then((late) => (abandoned ? discard(options.artifacts, late.path) : undefined), () => undefined);
+    const shot = await withTimeout(
       withAbort(capture, signal, () => new Error('the attempt ended before the step screenshot was captured')),
       options.timeoutMs,
       () => new Error(`step screenshot outlived its ${options.timeoutMs} ms budget`),
     );
     // A concurrent step may have filled a secret while the frame was taken: that frame can show it.
     if (tainted()) {
-      await discard(options.artifacts, relative);
+      await discard(options.artifacts, shot.path);
       recordPolicyEvent(options.steps, 'step.screenshot', 'denied', 'PIXEL_TAINTED');
       return;
     }
-    options.steps.attachArtifact(options.artifacts.register('screenshot', relative));
+    options.steps.attachArtifact(options.artifacts.register('screenshot', shot.path));
+    if (shot.viewport !== undefined) {
+      options.steps.amendViewport({ ...shot.viewport, scale: await pixelScale(path.join(options.artifacts.dir, shot.path), shot.viewport.width) });
+    }
   } catch (cause) {
     abandoned = true;
     const code = classifyError(cause).code;
@@ -85,4 +88,22 @@ export async function captureStepScreenshot(options: StepScreenshotOptions): Pro
 /** Deletes a frame the report will not carry, so no unregistered pixels stay in the attempt directory. */
 async function discard(artifacts: ArtifactSink, relative: string): Promise<void> {
   await rm(path.join(artifacts.dir, relative), { force: true }).catch(() => undefined);
+}
+
+/** How many image pixels one viewport unit is, from the PNG's own header; 1 when the header cannot be read. */
+async function pixelScale(file: string, viewportWidth: number): Promise<number> {
+  try {
+    const handle = await open(file, 'r');
+    try {
+      const header = Buffer.alloc(24);
+      await handle.read(header, 0, 24, 0);
+      // A PNG's width is the big-endian word at byte 16, inside its IHDR chunk.
+      const width = header.readUInt32BE(16);
+      return width > 0 && viewportWidth > 0 ? Math.round((width / viewportWidth) * 100) / 100 : 1;
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return 1;
+  }
 }

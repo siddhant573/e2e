@@ -372,6 +372,12 @@ export class StepRecorder {
     if (current !== undefined) current.argument = this.boundArgument(argument);
   }
 
+  /** Records the viewport the running step's boxes are measured against; outside a running step this is a no-op. */
+  amendViewport(viewport: { width: number; height: number; scale: number }): void {
+    const current = this.current();
+    if (current !== undefined && current.viewport === undefined) current.viewport = viewport;
+  }
+
   /** Records where the running step acted; outside a running step this is a no-op. */
   amendTarget(target: StepTarget): void {
     const current = this.current();

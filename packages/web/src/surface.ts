@@ -11,6 +11,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { Browser, BrowserContext, ElementHandle, FrameLocator, Page, Route } from 'playwright-core';
 import {
+  type EngineScreenshot,
   EngineError,
   raceAbort,
   TestError,
@@ -942,7 +943,7 @@ export class PlaywrightSurface {
    * latched, which belongs to the next step or the attempt's end. Otherwise a
    * frame the runner takes between steps would swallow the test's failure.
    */
-  screenshot(label: string | undefined, operation: OperationContext): Promise<string> {
+  screenshot(label: string | undefined, operation: OperationContext): Promise<EngineScreenshot> {
     return this.unlatched(operation, 'screenshot', async (currentOperation) => {
       const page = this.currentPage();
       const { relative, absolute } = this.artifactPath('screenshots', label, '.png');
@@ -951,7 +952,9 @@ export class PlaywrightSurface {
         timeout: currentOperation.timeoutMs,
         ...maskOptions(secureFieldMasks(page)),
       });
-      return relative;
+      // The CSS-pixel viewport node boxes are measured in; the image is larger on a scaled display.
+      const viewport = page.viewportSize();
+      return { path: relative, ...(viewport === null ? {} : { viewport: { width: viewport.width, height: viewport.height } }) };
     });
   }
 

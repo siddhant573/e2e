@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { AppDeployResult, CaptureSnapshotResult } from 'agent-device';
 import {
+  type EngineScreenshot,
   EngineError,
   KEY_NAMES,
   parseKey,
@@ -1414,7 +1415,7 @@ export class AgentDeviceSurface {
    * bounds cannot be masked, and an image that cannot be redacted is not
    * written at all.
    */
-  async screenshot(label: string | undefined, operation: OperationContext): Promise<string> {
+  async screenshot(label: string | undefined, operation: OperationContext): Promise<EngineScreenshot> {
     const attempt = this.attempt;
     if (attempt === undefined) throw invalidState('screenshot outside an attempt');
     const masked = await this.maskedScreenshot(operation.signal);
@@ -1423,7 +1424,8 @@ export class AgentDeviceSurface {
     const relative = path.join('screenshots', name);
     mkdirSync(path.join(attempt.artifactsDir, 'screenshots'), { recursive: true });
     writeFileSync(path.join(attempt.artifactsDir, relative), masked.data);
-    return relative;
+    // Node boxes are in points; the image is in device pixels, so the viewport says how to place one on the other.
+    return { path: relative, ...(this.knownViewport === undefined ? {} : { viewport: this.knownViewport }) };
   }
 
   /** Raw device pixels; cleanup follows the capture even when its caller abandons it. */

@@ -972,8 +972,8 @@ describe('session hooks, viewport swipe, location, artifacts', () => {
       return { path: file };
     });
     await openAttempt(h);
-    expect(await h.engine.artifacts!.screenshot('first shot', operation())).toBe('screenshots/001-first_shot.png');
-    expect(await h.engine.artifacts!.screenshot(undefined, operation())).toBe('screenshots/002-screenshot.png');
+    expect(await h.engine.artifacts!.screenshot('first shot', operation())).toMatchObject({ path: 'screenshots/001-first_shot.png' });
+    expect(await h.engine.artifacts!.screenshot(undefined, operation())).toMatchObject({ path: 'screenshots/002-screenshot.png' });
     const written = decodePng(new Uint8Array(readFileSync(path.join(artifactsDir, 'screenshots', '002-screenshot.png'))));
     const at = (x: number, y: number) => [...written.pixels.subarray((y * written.width + x) * written.channels, (y * written.width + x) * written.channels + 3)];
     expect(at(33, 96)).toEqual([0, 0, 0]);
@@ -981,7 +981,7 @@ describe('session hooks, viewport swipe, location, artifacts', () => {
 
     await h.engine.endAttempt!(cleanup());
     await h.engine.startAttempt!({ attemptId: 'a2', artifactsDir, signal: new AbortController().signal, resolveSecret: noSecrets });
-    expect(await h.engine.artifacts!.screenshot('again', operation())).toBe('screenshots/001-again.png');
+    expect(await h.engine.artifacts!.screenshot('again', operation())).toMatchObject({ path: 'screenshots/001-again.png' });
 
     h.fake.respond('capture.snapshot', () => ({
       nodes: [{ ref: 'e1', type: 'SecureTextField', label: 'PIN', value: '1234' }],
