@@ -89,8 +89,10 @@ failed result:
   target and `argument` what it was given: the text a fill typed, the key a
   press sent, the value an assertion expected, or `<secret:name>` for a
   secret. Text typed into a secure field (a password input) records
-  `<withheld>`, whether or not it came from a secret. Failed agent steps
-  include recent model turns.
+  `<withheld>`, whether or not it came from a secret. `target` says where
+  the step acted, in CSS pixels: the `box` of the node it resolved to and,
+  for a positioned tap, the `point`; an agent step records its last action's.
+  Failed agent steps include recent model turns.
 - `artifacts` lists the captured files.
 
 ## Artifacts

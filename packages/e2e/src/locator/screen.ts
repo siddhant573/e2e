@@ -202,9 +202,10 @@ class ScreenImpl implements Screen {
   async tapAt(point: Point, options?: ActionOptions): Promise<void> {
     rejectUnknownOptions('tapAt', options, ['timeout']);
     const at = requirePoint(point, 'tapAt');
-    await this.context.steps.run('screen', 'screen.tapAt', describePoint(at), () =>
-      this.context.engine.performAt(at, { kind: 'tap' }, options?.timeout),
-    );
+    await this.context.steps.run('screen', 'screen.tapAt', describePoint(at), async () => {
+      this.context.steps.amendTarget({ point: { x: at.x, y: at.y } });
+      await this.context.engine.performAt(at, { kind: 'tap' }, options?.timeout);
+    });
   }
 
   async swipe(options: SwipeOptions | SwipePathOptions): Promise<void> {
@@ -317,10 +318,24 @@ class LocatorImpl extends ScreenImpl implements Locator {
    */
   private async typedInto(text: string, act: (inspect: NodeInspector) => Promise<void>): Promise<void> {
     let shareable = false;
+    const record = this.recordTarget();
     await act((node) => {
       shareable = node !== null && node.states?.secure !== true;
+      record(node);
     });
     this.context.steps.amendArgument(shareable ? JSON.stringify(text) : '<withheld>');
+  }
+
+  /** Records the box of the node an action resolved to, and the point it acted at when it was positioned. */
+  private recordTarget(offset?: Point): NodeInspector {
+    return (node) => {
+      const box = node?.rect;
+      if (box === undefined) return;
+      this.context.steps.amendTarget({
+        box: { x: box.x, y: box.y, width: box.width, height: box.height },
+        ...(offset === undefined ? {} : { point: { x: box.x + offset.x, y: box.y + offset.y } }),
+      });
+    };
   }
 
   private action(api: string, body: () => Promise<void>, argument?: string): Promise<void> {
@@ -340,7 +355,7 @@ class LocatorImpl extends ScreenImpl implements Locator {
     rejectUnknownOptions(verb, options, ['timeout']);
     return this.action(
       `locator.${verb}`,
-      () => this.context.engine.perform(this.expression, action, options?.timeout),
+      () => this.context.engine.perform(this.expression, action, options?.timeout, this.recordTarget()),
       typeof action === 'function' ? undefined : actionArgument(action),
     );
   }
@@ -369,7 +384,7 @@ class LocatorImpl extends ScreenImpl implements Locator {
       'locator',
       `locator.${api}`,
       `${this.label} at ${describePoint(position)}`,
-      () => this.context.engine.performWithin(this.expression, position, { kind: 'tap' }, options.timeout),
+      () => this.context.engine.performWithin(this.expression, position, { kind: 'tap' }, options.timeout, this.recordTarget(position)),
     );
   }
 
@@ -396,7 +411,7 @@ class LocatorImpl extends ScreenImpl implements Locator {
   ): Promise<void> {
     const label = held.modifiers === undefined ? this.label : `${this.label} with ${held.modifiers.join('+')}`;
     return this.context.steps.run('locator', `locator.${api}`, label, () =>
-      this.context.engine.perform(this.expression, { kind, ...held }, timeout),
+      this.context.engine.perform(this.expression, { kind, ...held }, timeout, this.recordTarget()),
     );
   }
 
@@ -404,7 +419,7 @@ class LocatorImpl extends ScreenImpl implements Locator {
     rejectUnknownOptions('longPress', options, ['timeout', 'duration']);
     const durationMs = validateLongPress(options?.duration);
     return this.action('locator.longPress', () =>
-      this.context.engine.perform(this.expression, obj({ kind: 'longPress' as const, durationMs }), options?.timeout),
+      this.context.engine.perform(this.expression, obj({ kind: 'longPress' as const, durationMs }), options?.timeout, this.recordTarget()),
     );
   }
 

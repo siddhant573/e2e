@@ -82,3 +82,34 @@ describe('step argument', () => {
     60_000,
   );
 });
+
+describe('step target', () => {
+  it(
+    'records the box of the node a locator action acted on, and the point of a positioned tap',
+    async () => {
+      const button: SemanticNode = { ref: { id: 'save', revision: '' }, role: 'button', name: 'Save', states: { hidden: false }, rect: { x: 40, y: 60, width: 120, height: 30 } };
+      const fake = createFakeEngine({ artifacts: true, pointerActions: ['tap'], tree: { ref: { id: 'root', revision: '' }, role: 'root', children: [button] }, locate: async () => [button] });
+      const suite = `import { test } from 'e2e';
+
+test('acts on a box', async ({ app, screen }) => {
+  await app.open('/');
+  await screen.getByRole('button', { name: 'Save' }).tap();
+  await screen.getByRole('button', { name: 'Save' }).tap({ position: { x: 5, y: 6 } });
+});
+`;
+      const config = { targets: [{ name: 'fake', platform: 'web', engine: fake.engine, app: FAKE_APP }], evidence: false } as E2EConfig;
+      const { outcome, project } = await runProject({ 'tests/box.e2e.ts': suite }, { appUrl: FAKE_APP_URL, config });
+      try {
+        assertValidReport(outcome.report);
+        const steps = outcome.report.run.results[0]!.attempts.at(-1)!.steps;
+        expect(steps.map((entry) => entry.status)).toEqual(['passed', 'passed', 'passed']);
+        expect(steps[0]!.target).toBeUndefined();
+        expect(steps[1]!.target).toEqual({ box: { x: 40, y: 60, width: 120, height: 30 } });
+        expect(steps[2]!.target).toEqual({ box: { x: 40, y: 60, width: 120, height: 30 }, point: { x: 45, y: 66 } });
+      } finally {
+        project.cleanup();
+      }
+    },
+    60_000,
+  );
+});

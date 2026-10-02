@@ -146,6 +146,7 @@ function planTest(report: Report1Document, result: ReportResult): TestPlan {
       ...(attempts.length === 0 ? {} : { attempts }),
       ...(result.status === 'flaky' ? { flaky: true } : {}),
       ...(result.tags.length === 0 ? {} : { tags: result.tags }),
+      ...testEnvironment(execution),
       steps: steps.map((entry) => entry.summary),
     },
     steps: steps.map((entry) => entry.plan),
@@ -160,6 +161,12 @@ function planTest(report: Report1Document, result: ReportResult): TestPlan {
  */
 function testDir(result: ReportResult): string {
   return `t-${result.id.toLowerCase().replace(/[^0-9a-f]/g, '').slice(0, 16)}`;
+}
+
+/** The viewport the test's CSS-pixel boxes are measured against, as `WxH`, when a step recorded one. */
+function testEnvironment(execution: Execution | undefined): Json {
+  const viewport = execution?.steps.find((step) => step.viewport !== undefined)?.viewport;
+  return viewport === undefined ? {} : { environment: { resolution: `${viewport.width}x${viewport.height}` } };
 }
 
 /** What one result ran: its own last attempt, or its member record in its serial group's last attempt. */
@@ -298,12 +305,28 @@ function planStep(
         summary: stepSummary(step),
         duration_ms: step.durationMs,
         ...(url === undefined ? {} : { url }),
+        ...cursorOf(step),
         e2e: record,
       },
       ...(screenshot === undefined ? {} : { screenshot }),
       ...(screen === undefined ? {} : { screen }),
       ...(failure === undefined ? {} : { failure }),
     },
+  };
+}
+
+/**
+ * Where the viewer draws its cursor and the element outline, in CSS pixels:
+ * the exact point of a positioned action, else the centre of the node's box.
+ */
+function cursorOf(step: ReportStep): Json {
+  const { box, point } = step.target ?? {};
+  const at = point ?? (box === undefined ? undefined : { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  return {
+    ...(at === undefined ? {} : { coordinates: { x: Math.round(at.x), y: Math.round(at.y) } }),
+    ...(box === undefined
+      ? {}
+      : { element_rect: { x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: Math.round(box.height) } }),
   };
 }
 

@@ -314,3 +314,27 @@ describe('planPack: what the viewer shows for a step', () => {
     expect(plan.tests[0]!.steps[1]!.record).toMatchObject({ url: 'http://127.0.0.1/login', status: 'failed' });
   });
 });
+
+describe('planPack: where a step acted', () => {
+  it('writes the element box and the point the viewer draws its cursor at, in CSS pixels', () => {
+    const steps = [
+      step({ index: 0, api: 'locator.tap', target: { box: { x: 785, y: 824, width: 140, height: 18 } } }),
+      step({ index: 1, api: 'locator.tap', target: { box: { x: 10, y: 20, width: 100, height: 40 }, point: { x: 15, y: 30 } } }),
+      step({ index: 2, api: 'screen.tapAt', target: { point: { x: 300.6, y: 40.2 } } }),
+      step({ index: 3, kind: 'app', api: 'app.open', label: '/' }),
+    ];
+    const planned = planPack(report([result([attempt(steps)])])).tests[0]!.steps.map((entry) => entry.record);
+    expect(planned[0]).toMatchObject({ coordinates: { x: 855, y: 833 }, element_rect: { x: 785, y: 824, width: 140, height: 18 } });
+    expect(planned[1]).toMatchObject({ coordinates: { x: 15, y: 30 }, element_rect: { x: 10, y: 20, width: 100, height: 40 } });
+    expect(planned[2]).toMatchObject({ coordinates: { x: 301, y: 40 } });
+    expect(planned[2]).not.toHaveProperty('element_rect');
+    expect(planned[3]).not.toHaveProperty('coordinates');
+  });
+
+  it('names the viewport size the cursor is placed against, when a step recorded one', () => {
+    const steps = [step({ index: 0 }), step({ index: 1, viewport: { width: 1280, height: 720, scale: 2 } })];
+    const plan = planPack(report([result([attempt(steps)])]));
+    expect(plan.tests[0]!.result['environment']).toMatchObject({ resolution: '1280x720' });
+    expect(planPack(report([result([attempt([step()])])])).tests[0]!.result).not.toHaveProperty('environment');
+  });
+});

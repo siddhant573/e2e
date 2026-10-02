@@ -362,6 +362,7 @@ export class LocatorEngine {
     offset: ViewportPoint,
     action: PointerAction,
     timeoutMs?: number,
+    inspect?: NodeInspector,
   ): Promise<void> {
     this.checkPointerAction(action);
     const deadline = this.deadline(timeoutMs);
@@ -373,6 +374,7 @@ export class LocatorEngine {
       const { node } = await this.tryRead(expression, deadline);
       const rect = isNodeVisible(node) ? node.rect : undefined;
       if (rect !== undefined) {
+        inspect?.(node);
         await this.dispatchAt({ x: rect.x + offset.x, y: rect.y + offset.y }, action, deadline);
         return;
       }

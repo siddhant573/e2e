@@ -60,6 +60,15 @@ export interface StepEvent {
   reasoning?: string;
 }
 
+/**
+ * Where a step acted, in the CSS pixels of `SemanticNode.rect`: the box of
+ * the node it resolved to, and the exact point of a positioned pointer action.
+ */
+export interface StepTarget {
+  box?: { x: number; y: number; width: number; height: number };
+  point?: { x: number; y: number };
+}
+
 /** Required accounting for every agent step. */
 export interface StepMetrics {
   modelCalls: number;
@@ -169,6 +178,8 @@ export interface StepRecord {
   label: string;
   /** What the step was given beside its target, redacted and bounded; absent when it took nothing. */
   argument?: string;
+  /** Where on the screen the step acted, in CSS pixels; absent for a step that acted on no node or point. */
+  target?: StepTarget;
   /** The test line the step was called from; absent when no project line was on the stack. */
   source?: SourceLocation;
   status: 'passed' | 'failed' | 'blocked' | 'timed-out' | 'cancelled';
@@ -359,6 +370,12 @@ export class StepRecorder {
   amendArgument(argument: string): void {
     const current = this.current();
     if (current !== undefined) current.argument = this.boundArgument(argument);
+  }
+
+  /** Records where the running step acted; outside a running step this is a no-op. */
+  amendTarget(target: StepTarget): void {
+    const current = this.current();
+    if (current !== undefined) current.target = target;
   }
 
   /** An argument as the record keeps it: redacted, control characters replaced, and bounded. */
