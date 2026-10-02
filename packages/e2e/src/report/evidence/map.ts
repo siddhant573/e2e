@@ -384,7 +384,9 @@ function stepSummary(step: ReportStep): string {
     }
     return [capitalized(words(verb)), label, argument].filter((part) => part !== undefined && part !== '').join(' ');
   }
-  return [api, label, argument].filter((part) => part !== undefined && part !== '').join(' ');
+  // Any other api, an engine's own included: its verb in words, then what it acted on.
+  const verb = api.slice(api.lastIndexOf('.') + 1);
+  return [capitalized(words(verb)), label, argument].filter((part) => part !== undefined && part !== '').join(' ');
 }
 
 /** `Expect getByRole("alert") to have text "Saved"`, `Expect getByRole("dialog") not visible`. */

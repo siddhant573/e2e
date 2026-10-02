@@ -302,6 +302,16 @@ describe('planPack: what the viewer shows for a step', () => {
     expect(planned[7]!['e2e']).not.toHaveProperty('turns');
   });
 
+  it('reads any other api as its verb in words', () => {
+    const steps = [
+      step({ index: 0, kind: 'screen', api: 'screen.scrollUntilVisible', label: 'getByTestId("item-137")' }),
+      step({ index: 1, kind: 'app', api: 'device.back', label: '' }),
+      step({ index: 2, kind: 'app', api: 'device.openLink', label: 'myapp://settings' }),
+    ];
+    const planned = planPack(report([result([attempt(steps)])])).tests[0]!.steps.map((entry) => entry.record['summary']);
+    expect(planned).toEqual(['Scroll until visible getByTestId("item-137")', 'Back', 'Open link myapp://settings']);
+  });
+
   it('keeps an acronym whole in a matcher name', () => {
     const steps = [step({ index: 0, kind: 'assertion', api: 'expect.toHaveURL', label: '/dashboard' }), step({ index: 1, kind: 'assertion', api: 'expect.toHaveTitle', label: 'Playground' })];
     const planned = planPack(report([result([attempt(steps)])])).tests[0]!.steps.map((entry) => entry.record['summary']);
