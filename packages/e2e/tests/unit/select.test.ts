@@ -170,7 +170,7 @@ describe('resolveOptions', () => {
     expect(inherits.timeout).toBe(20_000);
   });
 
-  it("resolves a test's screenshot innermost first, and leaves a test that sets none to its target", async () => {
+  it("resolves a test's screenshot innermost first, and leaves it unset for a test that sets none", async () => {
     const col = await collection(() => {
       test('unset', noop);
       test.describe('outer', { screenshot: 'every-step' }, () => {

@@ -715,7 +715,8 @@ called inside another step is part of it and gets no frame of its own. An
 engine that cannot take screenshots is asked for none.
 
 Each capture is bounded by `actionTimeout` and counts toward the test's
-`timeout`. One that fails or times out is
+`timeout`, but not toward the step's reported `durationMs`, which stays the
+step's own work so timings compare across modes. One that fails or times out is
 recorded on the step as an `engine` event named `step.screenshot` and never
 fails the step. After a secret fill no screenshot is taken for the rest of
 the attempt: each later step records a `policy` event with `PIXEL_TAINTED`
