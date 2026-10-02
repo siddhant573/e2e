@@ -268,3 +268,43 @@ describe('planPack: serial groups', () => {
     expect(test.result['duration_ms']).toBe(5);
   });
 });
+
+describe('planPack: what the viewer shows for a step', () => {
+  it('writes the fields the viewer reads, with a sentence a person reads, and keeps the e2e record beside them', () => {
+    const steps = [
+      step({ index: 0, kind: 'app', api: 'app.open', label: '/login' }),
+      step({ index: 1, api: 'locator.fill', label: 'getByLabel("Username")', argument: '"admin"' }),
+      step({ index: 2, api: 'locator.fill', label: 'getByLabel("Password")', argument: '<secret:admin.password>' }),
+      step({ index: 3, api: 'locator.tap', label: 'getByRole("button", name: "Sign in")' }),
+      step({ index: 4, api: 'locator.press', label: 'getByLabel("Search")', argument: 'Enter' }),
+      step({ index: 5, kind: 'assertion', api: 'expect.toHaveText', label: 'getByRole("alert")', argument: 'text "Invalid credentials"' }),
+      step({ index: 6, kind: 'assertion', api: 'expect.not.toBeVisible', label: 'getByRole("dialog")', argument: 'visible' }),
+      step({ index: 7, kind: 'agent', api: 'agent.act', label: 'add shoes to the cart', events: [{ kind: 'engine', startedAt: '2026-10-02T00:00:00.000Z', durationMs: 5, status: 'passed', detail: 'tap button "Add to cart"' }] }),
+      step({ index: 8, kind: 'agent', api: 'agent.assert', label: 'the cart shows 1 item' }),
+    ];
+    const doc = report([result([attempt(steps)])]);
+    (doc.run.targets[0] as { baseOrigin?: string }).baseOrigin = 'http://127.0.0.1:4271';
+    const planned = planPack(doc).tests[0]!.steps.map((entry) => entry.record);
+    expect(planned.map((record) => record['summary'])).toEqual([
+      'Open /login',
+      'Fill getByLabel("Username") with "admin"',
+      'Fill getByLabel("Password") with <secret:admin.password>',
+      'Tap getByRole("button", name: "Sign in")',
+      'Press Enter on getByLabel("Search")',
+      'Expect getByRole("alert") to have text "Invalid credentials"',
+      'Expect getByRole("dialog") not visible',
+      'Act: add shoes to the cart (tap button "Add to cart")',
+      'Assert: the cart shows 1 item',
+    ]);
+    expect(planned[1]).toMatchObject({ id: '0-1', kind: 'locator.fill', status: 'passed', duration_ms: 12, e2e: { label: 'getByLabel("Username")', argument: '"admin"' } });
+    expect(planned[0]).toMatchObject({ url: 'http://127.0.0.1:4271/login' });
+    expect(planned[1]).not.toHaveProperty('url');
+    expect(planned[7]!['e2e']).not.toHaveProperty('turns');
+  });
+
+  it('puts the failure URL on the failing step', () => {
+    const failing = step({ index: 1, status: 'failed', error: assertionError as never, argument: 'text "Welcome"' });
+    const plan = planPack(report([result([attempt([step(), failing], { status: 'failed', error: assertionError as never, failure: { url: 'http://127.0.0.1/login' } })], { status: 'failed' })]));
+    expect(plan.tests[0]!.steps[1]!.record).toMatchObject({ url: 'http://127.0.0.1/login', status: 'failed' });
+  });
+});

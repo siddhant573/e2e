@@ -168,6 +168,8 @@ export interface ReportStep {
   kind: StepRecord['kind'];
   api: string;
   label: string;
+  /** What the step was given beside its target, redacted: typed text, a key, an expected value, `<secret:name>`. */
+  argument?: string | undefined;
   source: ReportSource;
   status: StepRecord['status'];
   startedAt: string;

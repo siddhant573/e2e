@@ -58,3 +58,25 @@ describe('afterStep', () => {
     expect(steps.all()[0]?.status).toBe('passed');
   });
 });
+
+describe('step argument', () => {
+  it('records what the step was given, through the redactor, and nothing when it was given none', async () => {
+    const steps = new StepRecorder('a', { redact: (text) => text.replaceAll('hunter2-value', '<secret:pw>') });
+    await steps.run('locator', 'locator.fill', 'getByLabel("Note")', async () => undefined, { argument: '"says hunter2-value"' });
+    await steps.run('locator', 'locator.tap', 'getByRole("button")', async () => undefined);
+    expect(steps.all()[0]?.argument).toBe('"says <secret:pw>"');
+    expect(steps.all()[1]).not.toHaveProperty('argument');
+  });
+
+  it('lets the running step amend its argument once it knows more, and leaves other steps alone', async () => {
+    const steps = new StepRecorder('a', {});
+    await steps.run('locator', 'locator.fill', 'getByLabel("Note")', async () => {
+      steps.amendArgument('"ada"');
+    });
+    await steps.run('locator', 'locator.fill', 'getByLabel("Password")', async () => {
+      steps.amendArgument('<withheld>');
+    });
+    steps.amendArgument('"outside"');
+    expect(steps.all().map((record) => record.argument)).toEqual(['"ada"', '<withheld>']);
+  });
+});
