@@ -302,6 +302,12 @@ describe('planPack: what the viewer shows for a step', () => {
     expect(planned[7]!['e2e']).not.toHaveProperty('turns');
   });
 
+  it('keeps an acronym whole in a matcher name', () => {
+    const steps = [step({ index: 0, kind: 'assertion', api: 'expect.toHaveURL', label: '/dashboard' }), step({ index: 1, kind: 'assertion', api: 'expect.toHaveTitle', label: 'Playground' })];
+    const planned = planPack(report([result([attempt(steps)])])).tests[0]!.steps.map((entry) => entry.record['summary']);
+    expect(planned).toEqual(['Expect URL /dashboard', 'Expect title Playground']);
+  });
+
   it('puts the failure URL on the failing step', () => {
     const failing = step({ index: 1, status: 'failed', error: assertionError as never, argument: 'text "Welcome"' });
     const plan = planPack(report([result([attempt([step(), failing], { status: 'failed', error: assertionError as never, failure: { url: 'http://127.0.0.1/login' } })], { status: 'failed' })]));

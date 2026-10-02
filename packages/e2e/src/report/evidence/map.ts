@@ -324,9 +324,14 @@ const APP_VERBS: Readonly<Record<string, string>> = { 'app.open': 'Open', 'app.b
 /** Agent actions a summary names before it trails off. */
 const MAX_SUMMARY_ACTIONS = 3;
 
-/** `doubleTap` as `double tap`. */
+/** `doubleTap` as `double tap`, `toHaveURL` as `to have URL`: an acronym stays whole. */
 function words(name: string): string {
-  return name.replace(/([A-Z])/g, ' $1').toLowerCase();
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(' ')
+    .map((word) => (/^[A-Z]{2,}$/.test(word) ? word : word.toLowerCase()))
+    .join(' ');
 }
 
 function capitalized(text: string): string {
