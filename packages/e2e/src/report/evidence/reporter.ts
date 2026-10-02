@@ -6,7 +6,7 @@
  * half-written directory is removed.
  */
 
-import { rm } from 'node:fs/promises';
+import { readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { ResolvedEvidence } from '../../config/resolve.ts';
 import { sanitizeText } from '../../internal/errors.ts';
@@ -25,9 +25,9 @@ export function evidenceReporter(options: ResolvedEvidence): Reporter {
       const packDir = path.join(options.outDir, `${sanitizePathSegment(report.run.id)}.evidence`);
       const shown = (file: string): string => path.relative(run.projectRoot, file) || file;
       try {
-        // A pack from an earlier run with the same id is replaced, never merged into.
-        await rm(packDir, { recursive: true, force: true });
-        await writePack(planPack(report), packDir, { projectRoot: run.projectRoot, artifactsRoot: run.artifactsRoot });
+        // The directory holds the latest run's pack only, as artifacts/ holds the latest run's files.
+        await removePacks(options.outDir);
+        await writePack(planPack(report), packDir, { projectRoot: run.projectRoot, artifactsRoot: run.artifactsRoot }, signal);
         signal.throwIfAborted();
         const sealed = await sealPack(packDir, report.run.finishedAt, options.profile);
         const errors = sealed.diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
@@ -44,4 +44,12 @@ export function evidenceReporter(options: ResolvedEvidence): Reporter {
       }
     },
   };
+}
+
+/** Removes earlier packs, sealed or left half-written, and nothing else: `outDir` may be shared. */
+async function removePacks(outDir: string): Promise<void> {
+  const entries = await readdir(outDir).catch(() => [] as string[]);
+  await Promise.all(
+    entries.filter((name) => /\.evidence(\.(tmp|bak)-[^/]*)?$/.test(name)).map((name) => rm(path.join(outDir, name), { recursive: true, force: true })),
+  );
 }

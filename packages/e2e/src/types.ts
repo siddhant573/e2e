@@ -1464,10 +1464,9 @@ export interface E2EConfig {
    */
   video?: RecordingMode;
   /**
-   * Which steps the runner screenshots; default `on-failure`. A target's
-   * `screenshot` wins over it, `--screenshot <mode>` over both, and a test's
-   * own `screenshot` over all. While `evidence` is on, the default is
-   * `every-step`.
+   * Which steps the runner screenshots; default `every-step` while
+   * `evidence` is on, else `on-failure`. A target's `screenshot` wins over
+   * it, `--screenshot <mode>` over both, and a test's own `screenshot` over all.
    */
   screenshot?: ScreenshotMode;
   /**

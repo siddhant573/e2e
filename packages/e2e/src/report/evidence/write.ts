@@ -16,15 +16,19 @@ export interface PackRoots {
   readonly artifactsRoot: string;
 }
 
-/** Writes `plan` into `packDir`, which must not exist yet or be empty. */
-export async function writePack(plan: PackPlan, packDir: string, roots: PackRoots): Promise<void> {
+/** Writes `plan` into `packDir`, which must not exist yet or be empty; stops between tests once `signal` aborts. */
+export async function writePack(plan: PackPlan, packDir: string, roots: PackRoots, signal?: AbortSignal): Promise<void> {
   await mkdir(path.join(packDir, 'tests'), { recursive: true });
   await writeJson(path.join(packDir, 'run.yaml'), plan.run);
   // The global coverage directory must exist in a sealed pack; a file keeps the zip from dropping it.
   await writeJson(path.join(packDir, 'coverage', 'e2e-summary.json'), plan.coverage);
-  for (const test of plan.tests) await writeTest(test, path.join(packDir, 'tests', test.dir), roots);
+  for (const test of plan.tests) {
+    signal?.throwIfAborted();
+    await writeTest(test, path.join(packDir, 'tests', test.dir), roots);
+  }
 }
 
+/** One test folder: definition, steps, logs and their meta, then `result.yaml`. */
 async function writeTest(test: TestPlan, dir: string, roots: PackRoots): Promise<void> {
   await mkdir(path.join(dir, 'steps'), { recursive: true });
   const definition = await copyInside(roots.projectRoot, test.definition.source, path.join(dir, test.definition.name));
@@ -40,6 +44,7 @@ async function writeTest(test: TestPlan, dir: string, roots: PackRoots): Promise
   await writeJson(path.join(dir, 'result.yaml'), result);
 }
 
+/** One step folder; a failure record drops each page-state reference whose file was not copied. */
 async function writeStep(step: StepPlan, dir: string, roots: PackRoots): Promise<void> {
   await mkdir(dir, { recursive: true });
   await writeJson(path.join(dir, 'step.json'), step.record);
@@ -55,6 +60,7 @@ async function writeStep(step: StepPlan, dir: string, roots: PackRoots): Promise
   await writeJson(path.join(dir, 'failure.yaml'), failure);
 }
 
+/** One log file, copied or written; false when its source could not be copied. */
 async function writeLog(log: LogPlan, dir: string, roots: PackRoots): Promise<boolean> {
   await mkdir(dir, { recursive: true });
   const target = path.join(dir, log.file);
@@ -76,11 +82,13 @@ async function copyInside(root: string, relative: string, target: string): Promi
   }
 }
 
+/** Writes `value` as indented JSON, which is also YAML. */
 async function writeJson(file: string, value: unknown): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+/** `record` without `key`. */
 function withoutKey(record: Record<string, unknown>, key: string): Record<string, unknown> {
   const { [key]: _dropped, ...rest } = record;
   return rest;

@@ -170,7 +170,8 @@ describe('planPack: identity and steps', () => {
     ]));
     const dirs = plan.tests.map((test) => test.dir);
     expect(new Set(dirs).size).toBe(3);
-    for (const dir of dirs) expect(dir).toMatch(/^[a-z0-9-]+$/);
+    // Generated from the result id alone: a title never becomes a path component.
+    for (const dir of dirs) expect(dir).toMatch(/^t-[0-9a-f]{16}$/);
     expect(plan.tests[0]!.result['test']).toBe(dirs[0]);
     expect(plan.tests[0]!.result['external_id']).toMatchObject({ e2e_test_id: 'tests/a.e2e.ts::saves', target: 'web', agent: 'default', repeat: 0 });
   });
@@ -201,7 +202,8 @@ describe('planPack: identity and steps', () => {
 
   it('ships a trace whose redaction allows it as a log', () => {
     const plan = planPack(report([result([attempt([step()], { artifacts: [artifact('t', 'trace', 'not-required', 'web/t/trace/trace.zip')] })])]));
-    expect(plan.tests[0]!.logs).toContainEqual({ name: 'trace', file: 'trace.zip', format: 'playwright-trace', source: 'web/t/trace/trace.zip' });
+    // The format comes from the artifact, not from any one engine's trace.
+    expect(plan.tests[0]!.logs).toContainEqual({ name: 'trace', file: 'trace.zip', format: 'trace', source: 'web/t/trace/trace.zip' });
   });
 });
 

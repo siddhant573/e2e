@@ -19,7 +19,6 @@ const EVIDENCE_VERSION = '0.1';
 const PRODUCT_DEFECT_CODES: ReadonlySet<string> = new Set(['ASSERTION_FAILED']);
 /** Redaction levels whose files are safe to copy into a pack a reader may share. */
 const SHAREABLE: ReadonlySet<string> = new Set(['complete', 'not-required']);
-const MAX_SLUG_LENGTH = 48;
 
 type Verdict = 'passed' | 'failed' | 'broken' | 'skipped';
 type Json = Record<string, unknown>;
@@ -93,6 +92,7 @@ export function planPack(report: Report1Document): PackPlan {
   };
 }
 
+/** `run.yaml`'s open environment block: the producer, platforms, host, CI, models, and commit. */
 function runEnvironment(report: Report1Document): Json {
   const run = report.run;
   const models = new Set<string>();
@@ -113,6 +113,7 @@ function runEnvironment(report: Report1Document): Json {
   };
 }
 
+/** `run.yaml`'s typed metrics: facts, never verdicts. */
 function runMetrics(report: Report1Document): Json {
   const { summary, usage } = report.run;
   return {
@@ -123,6 +124,7 @@ function runMetrics(report: Report1Document): Json {
   };
 }
 
+/** One selected result as a test folder. */
 function planTest(report: Report1Document, result: ReportResult): TestPlan {
   const dir = testDir(result);
   const execution = executionOf(report, result);
@@ -138,7 +140,7 @@ function planTest(report: Report1Document, result: ReportResult): TestPlan {
       test: dir,
       status: resultVerdict(result, execution),
       definition: { path: path.posix.basename(result.file) },
-      external_id: { e2e_test_id: result.testId, e2e_result_id: result.id, target: result.targetId, agent: result.agent, repeat: result.repeat },
+      external_id: { e2e_test_id: result.testId, e2e_result_id: result.id, title: result.titlePath.join(' › '), target: result.targetId, agent: result.agent, repeat: result.repeat },
       duration_ms: attempts.reduce((total, attempt) => total + attempt.duration_ms, 0),
       ...(attempts.length === 0 ? {} : { attempts }),
       ...(result.status === 'flaky' ? { flaky: true } : {}),
@@ -150,21 +152,16 @@ function planTest(report: Report1Document, result: ReportResult): TestPlan {
   };
 }
 
-/** `<slug of the title>-<first 8 hex of the result id>`: readable, path-safe, and distinct across targets, agents, and repeats. */
+/**
+ * `t-<first 16 hex of the result id>`: generated, never from a title (a
+ * label never becomes a path component), and distinct across targets,
+ * agents, and repeats. The title is in `result.yaml`'s `external_id`.
+ */
 function testDir(result: ReportResult): string {
-  const slug = result.titlePath
-    .join(' ')
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, MAX_SLUG_LENGTH)
-    .replace(/-+$/g, '');
-  const id = result.id.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
-  return `${slug === '' ? 'test' : slug}-${id}`;
+  return `t-${result.id.toLowerCase().replace(/[^0-9a-f]/g, '').slice(0, 16)}`;
 }
 
+/** What one result ran: its own last attempt, or its member record in its serial group's last attempt. */
 function executionOf(report: Report1Document, result: ReportResult): Execution | undefined {
   if (result.serialGroupId !== undefined) {
     const attempt = report.run.serialGroups.find((group) => group.id === result.serialGroupId)?.attempts.at(-1);
@@ -195,22 +192,26 @@ function failingStepIndex(execution: Execution): number {
   return execution.steps.findLast((step) => step.status !== 'passed')?.index ?? -1;
 }
 
+/** `failed` for the one product-defect code, `broken` for anything else. */
 function errorVerdict(error: ReportError | undefined): Verdict {
   return error !== undefined && PRODUCT_DEFECT_CODES.has(error.code) ? 'failed' : 'broken';
 }
 
+/** A result's verdict from its status and its final error. */
 function resultVerdict(result: ReportResult, execution: Execution | undefined): Verdict {
   if (result.status === 'passed' || result.status === 'flaky') return 'passed';
   if (result.status === 'skipped') return 'skipped';
   return errorVerdict(execution?.error);
 }
 
+/** An attempt's verdict from its status and error. */
 function attemptVerdict(status: string, error: ReportError | undefined): Verdict {
   if (status === 'passed') return 'passed';
   if (status === 'skipped') return 'skipped';
   return errorVerdict(error);
 }
 
+/** A step's verdict: only a failed step can be `failed`; blocked, timed out, or cancelled is `broken`. */
 function stepVerdict(step: ReportStep): Verdict {
   if (step.status === 'passed') return 'passed';
   if (step.status === 'failed') return errorVerdict(step.error);
@@ -227,10 +228,12 @@ function expectation(step: ReportStep, error: ReportError | undefined): { expect
   return { expected: String(details.expected), actual: details.observed === undefined ? '' : String(details.observed) };
 }
 
+/** Whether an artifact is a local file whose redaction allows copying it into a pack. */
 function shareable(artifact: ArtifactRecord | undefined): artifact is ArtifactRecord & { path: string } {
   return artifact !== undefined && artifact.path !== undefined && SHAREABLE.has(artifact.redaction);
 }
 
+/** One step as its folder, its `result.yaml` entry, and the failure record when the failure landed on it. */
 function planStep(
   step: ReportStep,
   execution: Execution,
@@ -313,17 +316,15 @@ function logsFor(execution: Execution | undefined, artifacts: ReadonlyMap<string
     });
   }
   const traces = [...artifacts.values()].filter((artifact) => artifact.kind === 'trace' && shareable(artifact));
+  // Core knows no engine's trace format: the file keeps the extension the engine gave it.
   traces.forEach((trace, index) => {
-    logs.push({
-      name: index === 0 ? 'trace' : `trace-${index + 1}`,
-      file: index === 0 ? 'trace.zip' : `trace-${index + 1}.zip`,
-      format: 'playwright-trace',
-      source: trace.path!,
-    });
+    const name = index === 0 ? 'trace' : `trace-${index + 1}`;
+    logs.push({ name, file: `${name}${path.posix.extname(trace.path!)}`, format: 'trace', source: trace.path! });
   });
   return logs;
 }
 
+/** Records as NDJSON text. */
 function lines(records: readonly unknown[]): string {
   return records.map((record) => JSON.stringify(record)).join('\n') + (records.length === 0 ? '' : '\n');
 }

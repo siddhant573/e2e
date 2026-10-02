@@ -4,7 +4,6 @@
  * valid pack is, so the reporter never re-implements its rules.
  */
 
-import { finalize, validate } from '@testmuai/evidence-cli';
 
 /** One validator finding, as the library reports it. */
 export interface PackDiagnostic {
@@ -24,6 +23,8 @@ export interface SealOutcome {
 
 /** Finalizes and seals `dir` (status, totals, definition hashes, failure index), then validates the zip at `profile`. */
 export async function sealPack(dir: string, endedAt: string, profile: 'L0' | 'L1'): Promise<SealOutcome> {
+  // Loaded on first use: every other CLI command (mcp, login, init) never pays for the zip and schema libraries.
+  const { finalize, validate } = await import('@testmuai/evidence-cli');
   const { totals, sealedPath } = await finalize(dir, { endedAt });
   const report = await validate(sealedPath, { profile });
   return {
