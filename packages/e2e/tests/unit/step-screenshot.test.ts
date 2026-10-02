@@ -1,5 +1,8 @@
 /** The frame after a step under `screenshot: 'every-step'`: when it is taken, attached, denied, or given up on. */
 
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { OperationContext, TargetSession } from '../../src/engine/surface.ts';
 import type { ArtifactSink } from '../../src/run/fixtures.ts';
@@ -12,10 +15,10 @@ function sessionWith(screenshot: (label: string | undefined) => Promise<string>)
   return { artifacts: { screenshot } } as unknown as TargetSession;
 }
 
-function sink(): ArtifactSink & { readonly registered: string[] } {
+function sink(dir = '/tmp/a'): ArtifactSink & { readonly registered: string[] } {
   const registered: string[] = [];
   return {
-    dir: '/tmp/a',
+    dir,
     registered,
     register: (kind, relativePath) => {
       registered.push(`${kind}:${relativePath}`);
@@ -90,5 +93,60 @@ describe('captureStepScreenshot', () => {
     const { record } = await stepWith('screen.tap', null, undefined);
     expect(record.events).toEqual([]);
     expect(record.artifacts).toEqual([]);
+  });
+
+  it('discards a frame taken while a secret fill raced it, and says so', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'step-shot-'));
+    const exposure = { withholdsPixels: false };
+    const secrecy = { exposure } as unknown as SessionSecrecy;
+    const artifacts = sink(dir);
+    const session = sessionWith(async () => {
+      // A concurrent step fills a secret while the capture is in flight.
+      exposure.withholdsPixels = true;
+      mkdirSync(path.join(dir, 'screenshots'), { recursive: true });
+      writeFileSync(path.join(dir, 'screenshots', 'raced.png'), 'pixels');
+      return 'screenshots/raced.png';
+    });
+    const steps: StepRecorder = new StepRecorder('a', {
+      afterStep: (record) =>
+        captureStepScreenshot({ record, session, secrecy, steps, artifacts, operation, timeoutMs: 1_000, signal: new AbortController().signal }),
+    });
+    await steps.run('app', 'screen.hover', 'x', async () => undefined);
+    const record = steps.all()[0]!;
+    expect(artifacts.registered).toEqual([]);
+    expect(record.artifacts).toEqual([]);
+    expect(existsSync(path.join(dir, 'screenshots', 'raced.png'))).toBe(false);
+    expect(record.events).toMatchObject([{ kind: 'policy', name: 'step.screenshot', decision: 'denied', code: 'PIXEL_TAINTED' }]);
+  });
+});
+
+describe('a capture given up on', () => {
+  it('deletes the frame when it lands after the budget, and keeps a frame that landed in time', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'step-shot-late-'));
+    const write = (name: string): string => {
+      mkdirSync(path.join(dir, 'screenshots'), { recursive: true });
+      writeFileSync(path.join(dir, 'screenshots', name), 'pixels');
+      return `screenshots/${name}`;
+    };
+    let land: (() => void) | undefined;
+    const late = sessionWith(() => new Promise<string>((resolve) => (land = () => resolve(write('late.png')))));
+    const steps: StepRecorder = new StepRecorder('a', {
+      afterStep: (record) =>
+        captureStepScreenshot({ record, session: late, secrecy: clean, steps, artifacts: sink(dir), operation, timeoutMs: 30, signal: new AbortController().signal }),
+    });
+    await steps.run('app', 'screen.tap', 'x', async () => undefined);
+    land!();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(existsSync(path.join(dir, 'screenshots', 'late.png'))).toBe(false);
+
+    const onTime = sessionWith(async () => write('on-time.png'));
+    const kept: StepRecorder = new StepRecorder('b', {
+      afterStep: (record) =>
+        captureStepScreenshot({ record, session: onTime, secrecy: clean, steps: kept, artifacts: sink(dir), operation, timeoutMs: 1_000, signal: new AbortController().signal }),
+    });
+    await kept.run('app', 'screen.tap', 'x', async () => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(existsSync(path.join(dir, 'screenshots', 'on-time.png'))).toBe(true);
+    expect(kept.all()[0]!.artifacts).toHaveLength(1);
   });
 });

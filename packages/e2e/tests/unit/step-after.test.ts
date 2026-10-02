@@ -47,4 +47,14 @@ describe('afterStep', () => {
     await steps.run('app', 'app.open', '/', async () => undefined);
     expect(order).toEqual(['after', 'end']);
   });
+
+  it('drops a synchronous throw too', async () => {
+    const steps = new StepRecorder('a', {
+      afterStep: (() => {
+        throw new Error('sync boom');
+      }) as never,
+    });
+    await expect(steps.run('app', 'app.open', '/', async () => 1)).resolves.toBe(1);
+    expect(steps.all()[0]?.status).toBe('passed');
+  });
 });

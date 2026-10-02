@@ -829,7 +829,8 @@ export class TargetExecutor implements SerialHost {
       maxEventsPerStep: this.config.limits.maxEventsPerStep,
       projectRoot: this.config.projectRoot,
       redact,
-      ...(screenshotMode === 'every-step'
+      // An engine without screenshots is asked for none, the way a run-level trace skips one that cannot trace.
+      ...(screenshotMode === 'every-step' && this.target.engine?.artifacts !== undefined
         ? {
             // Reads the session and artifacts lazily: no step runs before both exist.
             afterStep: (stepRecord: StepRecord) =>

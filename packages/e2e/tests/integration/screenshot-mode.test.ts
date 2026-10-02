@@ -121,4 +121,23 @@ describe('screenshot mode', () => {
     },
     60_000,
   );
+
+  it(
+    'asks nothing of an engine that cannot screenshot, so its steps carry no failed captures',
+    async () => {
+      const fake = createFakeEngine({});
+      const { outcome, project } = await runProject(
+        { 'tests/shots.e2e.ts': SUITE },
+        { appUrl: FAKE_APP_URL, config: fakeConfig(fake, { screenshot: 'every-step' }) },
+      );
+      try {
+        const passed = reported(outcome, 'opens and taps').attempts.at(-1)!;
+        expect(passed.status).toBe('passed');
+        expect(passed.steps.flatMap((step) => step.events.filter((event) => event.name === 'step.screenshot'))).toEqual([]);
+      } finally {
+        project.cleanup();
+      }
+    },
+    60_000,
+  );
 });

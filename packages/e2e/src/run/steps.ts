@@ -405,7 +405,11 @@ export class StepRecorder {
       if (options.verifies === true) this.lastVerified = Math.max(this.lastVerified, record.index);
       const afterStep = this.afterStep;
       if (!nested && afterStep !== undefined) {
-        await this.scope.run(record, () => afterStep(record)).catch(() => undefined);
+        try {
+          await this.scope.run(record, () => afterStep(record));
+        } catch {
+          // The hook never decides the step: a throw, sync or async, is dropped.
+        }
       }
       return result;
     } catch (cause) {
