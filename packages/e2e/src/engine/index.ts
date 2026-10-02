@@ -294,9 +294,21 @@ export interface EngineStateCapability {
  * Evidence capture. Paths are relative to the attempt artifact directory the
  * engine received in `startAttempt`.
  */
+/** A screenshot an engine took, and the viewport its node boxes are measured against. */
+export interface EngineScreenshot {
+  readonly path: string;
+  /** The screen in the units of `SemanticNode.rect`: CSS pixels on a browser, points on a device. */
+  readonly viewport?: ViewportSize;
+}
+
 export interface EngineArtifacts {
-  /** Captures a redacted screenshot; secure fields are masked at the source. */
-  screenshot(label: string | undefined, context: OperationContext): Promise<string>;
+  /**
+   * Captures a redacted screenshot; secure fields are masked at the source.
+   * Returns the artifact-relative path, or the path with the viewport the
+   * screen measured when the engine knows it, so a step's boxes (in the units
+   * of `SemanticNode.rect`) can be placed on an image whose pixels are larger.
+   */
+  screenshot(label: string | undefined, context: OperationContext): Promise<string | EngineScreenshot>;
   /** Starts recording an execution trace for the attempt. */
   startTrace?(context: OperationContext): Promise<void>;
   /**

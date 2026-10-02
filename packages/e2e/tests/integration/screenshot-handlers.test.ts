@@ -60,4 +60,11 @@ describe('every-step screenshots and handler failures', () => {
       for (const step of attempt.steps) expect(step.events.filter((event) => event.name === 'step.screenshot')).toEqual([]);
     },
   );
+
+  it('records the viewport each step frame was measured against, so boxes can be placed on the image', () => {
+    const result = resultByTitle(outcome, 'a dialog handler assertion that no step follows');
+    const framed = result.attempts[0]!.steps.find((step) => step.artifacts.length > 0);
+    expect(framed?.viewport).toEqual({ width: expect.any(Number), height: expect.any(Number), scale: expect.any(Number) });
+    expect(framed!.viewport!.width).toBeGreaterThan(0);
+  });
 });

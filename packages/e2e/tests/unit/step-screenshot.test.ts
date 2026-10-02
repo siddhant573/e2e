@@ -1,6 +1,7 @@
 /** The frame after a step under `screenshot: 'every-step'`: when it is taken, attached, denied, or given up on. */
 
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { PNG } from 'pngjs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -11,9 +12,17 @@ import type { SessionSecrecy } from '../../src/run/secrecy.ts';
 import { captureStepScreenshot } from '../../src/run/step-screenshot.ts';
 import { StepRecorder } from '../../src/run/steps.ts';
 
-/** A session whose only working part is `artifacts.screenshot`. */
-function sessionWith(screenshot: (label: string | undefined) => Promise<string>): TargetSession {
-  return { artifacts: { screenshot } } as unknown as TargetSession;
+/** A session whose only working part is screenshots: `capture` wraps the path the way the real session does. */
+function sessionWith(
+  screenshot: (label: string | undefined) => Promise<string>,
+  viewport?: { width: number; height: number },
+): TargetSession {
+  return {
+    artifacts: {
+      screenshot,
+      capture: async (label: string | undefined) => ({ path: await screenshot(label), ...(viewport === undefined ? {} : { viewport }) }),
+    },
+  } as unknown as TargetSession;
 }
 
 function sink(dir = '/tmp/a'): ArtifactSink & { readonly registered: string[] } {
@@ -158,5 +167,25 @@ describe('a capture given up on', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(existsSync(path.join(dir, 'screenshots', 'on-time.png'))).toBe(true);
     expect(kept.all()[0]!.artifacts).toHaveLength(1);
+  });
+});
+
+describe('the viewport a frame was measured against', () => {
+  it('records the engine viewport and the pixel scale the image was taken at', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'step-shot-viewport-'));
+    mkdirSync(path.join(dir, 'screenshots'), { recursive: true });
+    writeFileSync(path.join(dir, 'screenshots', 'phone.png'), PNG.sync.write(new PNG({ width: 1206, height: 2622 })));
+    const session = sessionWith(async () => 'screenshots/phone.png', { width: 402, height: 874 });
+    const steps: StepRecorder = new StepRecorder('a', {
+      afterStep: (record) =>
+        captureStepScreenshot({ record, session, secrecy: clean, steps, artifacts: sink(dir), operation, timeoutMs: 1_000, signal: new AbortController().signal }),
+    });
+    await steps.run('locator', 'locator.tap', 'x', async () => undefined);
+    expect(steps.all()[0]!.viewport).toEqual({ width: 402, height: 874, scale: 3 });
+  });
+
+  it('records no viewport when the engine reports none', async () => {
+    const { record } = await stepWith('screen.tap', sessionWith(async () => 'x.png'), clean);
+    expect(record.viewport).toBeUndefined();
   });
 });
