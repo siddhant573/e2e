@@ -144,8 +144,10 @@ describe('a capture given up on', () => {
     });
     await steps.run('app', 'screen.tap', 'x', async () => undefined);
     land!();
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(existsSync(path.join(dir, 'screenshots', 'late.png'))).toBe(false);
+    // The deletion is fired from the capture's own settlement, unawaited: poll for it with a deadline.
+    const lateFile = path.join(dir, 'screenshots', 'late.png');
+    for (let waited = 0; existsSync(lateFile) && waited < 2_000; waited += 10) await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(existsSync(lateFile)).toBe(false);
 
     const onTime = sessionWith(async () => write('on-time.png'));
     const kept: StepRecorder = new StepRecorder('b', {
