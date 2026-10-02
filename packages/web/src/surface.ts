@@ -57,6 +57,7 @@ import { httpCredentials, installSiteHeaders, lowercaseNames } from './protected
 import { RefRegistry } from './refs.ts';
 import {
   cancelled,
+  currentViewport,
   DEFAULT_VIEWPORT,
   ErrorLatch,
   invalidState,
@@ -889,8 +890,9 @@ export class PlaywrightSurface {
         timeout: currentOperation.timeoutMs,
         ...maskOptions(secureFieldMasks(page)),
       });
-      // The CSS-pixel viewport node boxes are measured in; the image is larger on a scaled display.
-      const viewport = page.viewportSize();
+      // The CSS-pixel viewport node boxes are measured in; the image is larger on a scaled display. A window-sized
+      // context (`viewport: null`) has no fixed one, so the window's own size stands in.
+      const viewport = page.viewportSize() ?? (await currentViewport(page).catch(() => null));
       return { path: relative, ...(viewport === null ? {} : { viewport: { width: viewport.width, height: viewport.height } }) };
     });
   }

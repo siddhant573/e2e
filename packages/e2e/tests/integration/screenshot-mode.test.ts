@@ -69,6 +69,8 @@ describe('screenshot mode', () => {
           expect(shots).toHaveLength(1);
           expect(shots[0]!.producer).toEqual({ kind: 'step', stepId: passed.steps[index]!.id });
         }
+        // Each frame is its own file: a later capture never overwrites an earlier one.
+        expect(stepScreenshots(passed, 0)[0]!.path).not.toBe(stepScreenshots(passed, 1)[0]!.path);
 
         const secret = reported(outcome, 'fills a secret, then taps').attempts.at(-1)!;
         expect(stepScreenshots(secret, 0)).toHaveLength(1);

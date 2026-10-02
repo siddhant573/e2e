@@ -112,4 +112,29 @@ test('acts on a box', async ({ app, screen }) => {
     },
     60_000,
   );
+
+  it(
+    'withholds the expected value of an assertion that reads a secure field',
+    async () => {
+      const fake = createFakeEngine({ artifacts: true, tree: SECURE_TREE, locate: async () => [SECURE_TREE.children![0]!] });
+      const suite = `import { test, expect } from 'e2e';
+
+test('asserts on a password field', async ({ app, screen }) => {
+  await app.open('/');
+  await expect(screen.getByLabel('Password')).toHaveValue('marker-expected-secret', { timeout: 200 });
+});
+`;
+      const config = { targets: [{ name: 'fake', platform: 'web', engine: fake.engine, app: FAKE_APP }], evidence: false } as E2EConfig;
+      const { outcome, project } = await runProject({ 'tests/secure-assert.e2e.ts': suite }, { appUrl: FAKE_APP_URL, config });
+      try {
+        const assertion = outcome.report.run.results[0]!.attempts.at(-1)!.steps.find((entry) => entry.api === 'expect.toHaveValue')!;
+        expect(assertion.error?.code).toBe('POLICY_DENIED');
+        expect(assertion.argument).toBe('<withheld>');
+        expect(JSON.stringify(outcome.report)).not.toContain('marker-expected-secret');
+      } finally {
+        project.cleanup();
+      }
+    },
+    60_000,
+  );
 });

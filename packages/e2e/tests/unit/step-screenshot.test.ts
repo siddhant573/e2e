@@ -188,4 +188,17 @@ describe('the viewport a frame was measured against', () => {
     const { record } = await stepWith('screen.tap', sessionWith(async () => 'x.png'), clean);
     expect(record.viewport).toBeUndefined();
   });
+
+  it('records scale 1 for a frame that is not a PNG, never a width read from garbage', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'step-shot-jpeg-'));
+    mkdirSync(path.join(dir, 'screenshots'), { recursive: true });
+    writeFileSync(path.join(dir, 'screenshots', 'frame.jpg'), Buffer.from('ffd8ffe000104a4649460001'.repeat(4), 'hex'));
+    const session = sessionWith(async () => 'screenshots/frame.jpg', { width: 400, height: 800 });
+    const steps: StepRecorder = new StepRecorder('a', {
+      afterStep: (record) =>
+        captureStepScreenshot({ record, session, secrecy: clean, steps, artifacts: sink(dir), operation, timeoutMs: 1_000, signal: new AbortController().signal }),
+    });
+    await steps.run('locator', 'locator.tap', 'x', async () => undefined);
+    expect(steps.all()[0]!.viewport).toEqual({ width: 400, height: 800, scale: 1 });
+  });
 });
