@@ -770,7 +770,7 @@ How a run maps onto the pack:
 | Pack | From the run |
 | --- | --- |
 | `run.yaml` | the run id, start and end, project id, runner version, platforms, commit, and model; token, cost, and artifact-size metrics |
-| `tests/t-<id>/` | one folder per selected result, named from the result id (the title is in `result.yaml`), so a test on two targets or under `--repeat-each` is two folders |
+| `tests/t-<id>/` | one folder per selected result, named from the result id, so a test on two targets or under `--repeat-each` is two folders. The viewer lists it by `external_id.session_name`: the title path, plus the target, agent, or repeat when those tell two results with one title apart (`checkout · phone`, `checkout · web · repeat 2`) |
 | `result.yaml` | the verdict, every attempt, `flaky`, tags, the final attempt's steps (each with its api as `kind`, label, duration, and cache mode), and `environment.resolution`, the viewport a step's boxes are measured in (from a step frame or an agent step), when one was |
 | `steps/<n>-<attempt>-<index>/` | `step.json`: the viewer's fields (`summary`, a sentence such as `Fill getByLabel("Username") with "ada"`, plus `kind`, `status`, `duration_ms`, `url` on an `app.open` or failing step, and `coordinates` and `element_rect` in CSS pixels where the step acted, which the viewer draws as a cursor and an outline) and the report's step record under `e2e`, without model turns; the step's frame as `screenshot.png` |
 | `failure.yaml` | on the failing step: the error, expected and actual (a matcher's, or an `agent.assert` instruction against its explanation), the locator, the URL, the failure frame, and the screen text |

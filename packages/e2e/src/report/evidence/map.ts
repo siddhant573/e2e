@@ -76,7 +76,9 @@ interface Execution {
 /** Plans the pack for a finished run: one test folder per selected result. */
 export function planPack(report: Report1Document): PackPlan {
   const run = report.run;
-  const tests = run.results.filter((result) => result.selected).map((result) => planTest(report, result));
+  const selected = run.results.filter((result) => result.selected);
+  const names = testNames(selected);
+  const tests = selected.map((result, index) => planTest(report, result, names[index]!));
   return {
     run: {
       evidence: EVIDENCE_VERSION,
@@ -125,7 +127,7 @@ function runMetrics(report: Report1Document): Json {
 }
 
 /** One selected result as a test folder. */
-function planTest(report: Report1Document, result: ReportResult): TestPlan {
+function planTest(report: Report1Document, result: ReportResult, name: string): TestPlan {
   const dir = testDir(result);
   const execution = executionOf(report, result);
   const artifacts = new Map((execution?.artifacts ?? []).map((artifact) => [artifact.id, artifact]));
@@ -141,7 +143,8 @@ function planTest(report: Report1Document, result: ReportResult): TestPlan {
       test: dir,
       status: resultVerdict(result, execution),
       definition: { path: path.posix.basename(result.file) },
-      external_id: { e2e_test_id: result.testId, e2e_result_id: result.id, title: result.titlePath.join(' › '), target: result.targetId, agent: result.agent, repeat: result.repeat },
+      // `session_name` is what the viewer lists the test as and heads it with.
+      external_id: { session_name: name, e2e_test_id: result.testId, e2e_result_id: result.id, target: result.targetId, agent: result.agent, repeat: result.repeat },
       duration_ms: attempts.reduce((total, attempt) => total + attempt.duration_ms, 0),
       ...(attempts.length === 0 ? {} : { attempts }),
       ...(result.status === 'flaky' ? { flaky: true } : {}),
@@ -152,6 +155,28 @@ function planTest(report: Report1Document, result: ReportResult): TestPlan {
     steps: steps.map((entry) => entry.plan),
     logs: logsFor(execution, artifacts),
   };
+}
+
+/**
+ * Each result's readable name: its title path, then whatever tells it apart
+ * from a result with the same title (the target or the agent, when those
+ * differ among them, and a repeat after the first).
+ */
+function testNames(results: readonly ReportResult[]): string[] {
+  const byTitle = new Map<string, ReportResult[]>();
+  for (const result of results) {
+    const title = result.titlePath.join(' › ');
+    byTitle.set(title, [...(byTitle.get(title) ?? []), result]);
+  }
+  return results.map((result) => {
+    const title = result.titlePath.join(' › ');
+    const same = byTitle.get(title) ?? [];
+    const parts = [title];
+    if (new Set(same.map((other) => other.targetId)).size > 1) parts.push(result.targetId);
+    if (new Set(same.map((other) => other.agent)).size > 1 && result.agent !== 'default') parts.push(`agent ${result.agent}`);
+    if (result.repeat > 0) parts.push(`repeat ${result.repeat + 1}`);
+    return parts.join(' · ');
+  });
 }
 
 /**
