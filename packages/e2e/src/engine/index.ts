@@ -290,10 +290,6 @@ export interface EngineStateCapability {
   restore(state: EngineState, context: OperationContext): Promise<void>;
 }
 
-/**
- * Evidence capture. Paths are relative to the attempt artifact directory the
- * engine received in `startAttempt`.
- */
 /** A screenshot an engine took, and the viewport its node boxes are measured against. */
 export interface EngineScreenshot {
   readonly path: string;
@@ -301,6 +297,10 @@ export interface EngineScreenshot {
   readonly viewport?: ViewportSize;
 }
 
+/**
+ * Evidence capture. Paths are relative to the attempt artifact directory the
+ * engine received in `startAttempt`.
+ */
 export interface EngineArtifacts {
   /**
    * Captures a redacted screenshot; secure fields are masked at the source.

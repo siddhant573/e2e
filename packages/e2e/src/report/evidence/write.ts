@@ -7,7 +7,8 @@
  * does not hold.
  */
 
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, copyFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { LogPlan, PackPlan, StepPlan, TestPlan } from './map.ts';
 
@@ -69,17 +70,19 @@ async function writeLog(log: LogPlan, dir: string, roots: PackRoots): Promise<bo
   return true;
 }
 
-/** Copies `relative` from under `root` to `target`; false when it resolves outside `root` or cannot be read. */
+/** Copies `relative` from under `root` to `target`; false when it resolves outside `root` or cannot be read, and throws when writing fails. */
 async function copyInside(root: string, relative: string, target: string): Promise<boolean> {
   const source = path.resolve(root, relative);
   const fromRoot = path.relative(root, source);
   if (fromRoot === '' || fromRoot.startsWith('..') || path.isAbsolute(fromRoot)) return false;
   try {
-    await copyFile(source, target);
-    return true;
+    await access(source, constants.R_OK);
   } catch {
+    // A source that is gone or unreadable is left out; a failure writing into the pack is not.
     return false;
   }
+  await copyFile(source, target);
+  return true;
 }
 
 /** Writes `value` as indented JSON, which is also YAML. */

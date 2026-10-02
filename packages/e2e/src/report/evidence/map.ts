@@ -98,11 +98,12 @@ export function planPack(report: Report1Document): PackPlan {
 function runEnvironment(report: Report1Document): Json {
   const run = report.run;
   const models = new Set<string>();
-  for (const result of run.results) {
-    for (const attempt of result.attempts) {
-      for (const step of attempt.steps) if (step.model !== undefined) models.add(`${step.model.provider}/${step.model.model}`);
-    }
-  }
+  const steps = [
+    ...run.results.flatMap((result) => result.attempts.flatMap((attempt) => attempt.steps)),
+    // A serial member's steps live in its group's attempts, not its own result.
+    ...run.serialGroups.flatMap((group) => group.attempts.flatMap((attempt) => attempt.members.flatMap((member) => member.steps))),
+  ];
+  for (const step of steps) if (step.model !== undefined) models.add(`${step.model.provider}/${step.model.model}`);
   return {
     producer: { name: run.runner.name, version: run.runner.version },
     surfaces: [...new Set(run.targets.map((target) => target.platform))],

@@ -1,15 +1,21 @@
 /** Writing a planned pack to disk, then sealing it: what the evidence library accepts, and what is left out when a file is gone. */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { PackPlan } from '../../src/report/evidence/map.ts';
 import { sealPack } from '../../src/report/evidence/seal.ts';
 import { writePack } from '../../src/report/evidence/write.ts';
 
+const bases: string[] = [];
+afterEach(() => {
+  for (const base of bases.splice(0)) rmSync(base, { recursive: true, force: true });
+});
+
 function roots() {
   const base = mkdtempSync(path.join(os.tmpdir(), 'evidence-write-'));
+  bases.push(base);
   const projectRoot = path.join(base, 'project');
   const artifactsRoot = path.join(projectRoot, '.e2e', 'artifacts');
   mkdirSync(path.join(projectRoot, 'tests'), { recursive: true });
@@ -98,5 +104,13 @@ describe('writePack and sealPack', () => {
     await writePack(plan({ steps: false }), dir, { projectRoot, artifactsRoot });
     const sealed = await sealPack(dir, '2026-10-02T00:01:00.000Z', 'L1');
     expect(sealed.diagnostics.filter((diagnostic) => diagnostic.severity === 'error')).toEqual([]);
+  });
+
+  it('fails loudly when it cannot write into the pack, rather than dropping the file', async () => {
+    const { base, projectRoot, artifactsRoot } = roots();
+    const dir = path.join(base, 'out', 'r5.evidence');
+    // A directory where the definition file must go makes the copy itself fail.
+    mkdirSync(path.join(dir, 'tests', 'a-00000001', 'a.e2e.ts'), { recursive: true });
+    await expect(writePack(plan(), dir, { projectRoot, artifactsRoot })).rejects.toThrow();
   });
 });

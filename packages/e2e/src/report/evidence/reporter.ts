@@ -10,6 +10,7 @@ import { readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { ResolvedEvidence } from '../../config/resolve.ts';
 import { sanitizeText } from '../../internal/errors.ts';
+import { withAbort } from '../../internal/time.ts';
 import { sanitizePathSegment } from '../../run/artifacts.ts';
 import type { Reporter, ReporterSummary } from '../../types.ts';
 import { planPack } from './map.ts';
@@ -21,6 +22,8 @@ export function evidenceReporter(options: ResolvedEvidence): Reporter {
   return {
     name: 'evidence',
     async onRunFinished(run, signal): Promise<ReporterSummary> {
+      // A run that stopped before its tests leaves the previous run's output, the pack included, where it is.
+      if (run.reportPath === undefined) return [{ label: 'Evidence', text: 'not written: the run stopped before its tests' }];
       const report = run.report;
       const packDir = path.join(options.outDir, `${sanitizePathSegment(report.run.id)}.evidence`);
       const shown = (file: string): string => path.relative(run.projectRoot, file) || file;
@@ -29,7 +32,8 @@ export function evidenceReporter(options: ResolvedEvidence): Reporter {
         await removePacks(options.outDir);
         await writePack(planPack(report), packDir, { projectRoot: run.projectRoot, artifactsRoot: run.artifactsRoot }, signal);
         signal.throwIfAborted();
-        const sealed = await sealPack(packDir, report.run.finishedAt, options.profile);
+        // The seal cannot be interrupted midway; a cancelled reporter stops waiting, and the catch removes the pack.
+        const sealed = await withAbort(sealPack(packDir, report.run.finishedAt, options.profile), signal, () => new Error('the run stopped waiting for the pack'));
         const errors = sealed.diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
         return [
           { label: 'Evidence', text: shown(sealed.sealedPath) },

@@ -18,6 +18,9 @@ import type { ArtifactSink } from './fixtures.ts';
 import type { SessionSecrecy } from './secrecy.ts';
 import type { StepRecord, StepRecorder } from './steps.ts';
 
+/** The eight bytes every PNG file starts with. */
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 /** Steps that keep a frame of their own; a second one after them would be the same picture. */
 const SELF_CAPTURING: ReadonlySet<string> = new Set(['app.screenshot', 'agent.assert']);
 
@@ -97,6 +100,7 @@ async function pixelScale(file: string, viewportWidth: number): Promise<number> 
     try {
       const header = Buffer.alloc(24);
       await handle.read(header, 0, 24, 0);
+      if (!header.subarray(0, 8).equals(PNG_SIGNATURE)) return 1;
       // A PNG's width is the big-endian word at byte 16, inside its IHDR chunk.
       const width = header.readUInt32BE(16);
       return width > 0 && viewportWidth > 0 ? Math.round((width / viewportWidth) * 100) / 100 : 1;

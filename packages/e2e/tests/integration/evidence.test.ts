@@ -156,8 +156,10 @@ describe('evidence pack', () => {
       );
       try {
         expect(outcome.exitCode).toBe(0);
+        // The run wrote its report, so it writes its pack: one with no tests, which the format accepts.
         const pack = packIn(project.dir);
-        if (pack !== undefined) expect((await validate(pack, { profile: 'L1' })).valid).toBe(true);
+        expect(pack).toBeDefined();
+        expect((await validate(pack!, { profile: 'L1' })).valid).toBe(true);
       } finally {
         project.cleanup();
       }
