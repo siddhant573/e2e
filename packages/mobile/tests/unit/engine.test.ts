@@ -949,6 +949,8 @@ describe('session hooks, viewport swipe, location, artifacts', () => {
     const h = harness();
     const image = { width: 390, height: 844, channels: 3 as const, pixels: new Uint8Array(390 * 844 * 3).fill(200) };
     let captures = 0;
+    let probeFile: string | undefined;
+    let settleProbe: (() => void) | undefined;
     const controller = new AbortController();
     h.fake.respond('capture.screenshot', (args) => {
       captures += 1;
@@ -957,14 +959,20 @@ describe('session hooks, viewport swipe, location, artifacts', () => {
         writeFileSync(file, encodePng(image));
         return { path: file };
       }
-      // The probe for the screen's logical size: cancelled while it is in flight.
+      // The probe for the screen's logical size: cancelled while it is in flight, settled once the test has asserted.
+      probeFile = file;
       controller.abort();
-      return new Promise(() => undefined);
+      return new Promise((resolve) => {
+        settleProbe = () => resolve({ path: file });
+      });
     });
     // A screen whose snapshot has no geometry, so the screenshot has to probe for its size.
     h.fake.respond('capture.snapshot', () => ({ nodes: [] }));
     await openAttempt(h);
     await expect(h.engine.artifacts!.screenshot('probe', operation(controller.signal))).rejects.toMatchObject({ code: 'CANCELLED' });
+    settleProbe!();
+    // Once the abandoned probe settles, its capture cleans up after itself.
+    await vi.waitFor(() => expect(existsSync(path.dirname(probeFile!))).toBe(false));
   });
 
   it('numbers screenshots per attempt, masks secure fields in them, and refuses an unmaskable one', async () => {
