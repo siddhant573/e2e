@@ -297,7 +297,7 @@ export function resolveConfig(
   const limits = runLimits(agents.values());
   const cache = resolveCacheConfig(raw, ci, options.projectRoot, cli.cache, cli.cacheStrict === true);
   const output = resolveOutput(raw.output, cli.output, options.projectRoot, cache.dir, tests);
-  const evidence = evidenceOn ? resolveEvidence(raw.evidence, options.projectRoot, output) : undefined;
+  const evidence = evidenceOn ? resolveEvidence(raw.evidence, options.projectRoot, output, cache.dir) : undefined;
 
   const resolved: ResolvedConfig = {
     projectId,
@@ -664,6 +664,7 @@ function evidenceEnabled(value: unknown, env: NodeJS.ProcessEnv, cli: CliOverrid
   return true;
 }
 
+/** Refuses an `evidence` value that is not a boolean or `{ enabled?, outDir?, profile? }` with valid fields. */
 function checkEvidenceShape(value: unknown): void {
   if (value === undefined || typeof value === 'boolean') return;
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -687,15 +688,26 @@ function checkEvidenceShape(value: unknown): void {
 }
 
 /** The pack's directory and profile, for a run that writes one. */
-function resolveEvidence(value: unknown, projectRoot: string, output: string): ResolvedEvidence {
+function resolveEvidence(value: unknown, projectRoot: string, output: string, cacheDir: string): ResolvedEvidence {
   const settings = typeof value === 'object' && value !== null ? (value as EvidenceConfig) : {};
   const outDir = settings.outDir === undefined ? path.join(output, 'evidence') : path.resolve(projectRoot, settings.outDir);
   if (settings.outDir !== undefined) {
+    const named = `evidence.outDir ${JSON.stringify(settings.outDir)}`;
+    const refuse = (reason: string): never => {
+      throw new ConfigurationError('INVALID_CONFIG', `${named} ${reason}`);
+    };
     const root = realpathOfExisting(projectRoot);
     const real = realpathOfExisting(outDir);
-    if (real === root || !isWithin(real, root)) {
-      throw new ConfigurationError('INVALID_CONFIG', `evidence.outDir must be a directory inside the project, not its root, got ${JSON.stringify(settings.outDir)}`);
+    if (real === root || !isWithin(real, root)) refuse('must be a directory inside the project, not its root');
+    // A run removes every pack in it: never a directory the cache is committed from, or one each run clears.
+    const cache = realpathOfExisting(cacheDir);
+    if (isWithin(real, cache)) refuse(`is the cache directory ${path.relative(root, cache)} or inside it; keep packs and the replay cache apart`);
+    for (const owned of OUTPUT_OWNED_DIRS) {
+      const dir = realpathOfExisting(path.join(output, owned));
+      if (isWithin(real, dir)) refuse(`is inside ${path.relative(root, dir)}, which every run clears; name a directory of its own`);
     }
+    const existing = nearestExisting(outDir);
+    if (existing !== undefined && !statSync(existing).isDirectory()) refuse('is a file, or under one; name a directory');
   }
   return { outDir, profile: settings.profile ?? 'L1' };
 }

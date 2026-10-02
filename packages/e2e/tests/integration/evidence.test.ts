@@ -11,7 +11,7 @@ import { openContainer, validate } from '@testmuai/evidence-cli';
 import { describe, expect, it } from 'vitest';
 import type { E2EConfig } from '../../src/index.ts';
 import { createFakeEngine, FAKE_APP, FAKE_APP_URL, type FakeEngineHandle } from '../helpers/fake-engine.ts';
-import { contentsUnder, runProject } from '../helpers/run-project.ts';
+import { contentsUnder, runExisting, runProject } from '../helpers/run-project.ts';
 
 const PASSWORD = 'hunter2-evidence-secret';
 
@@ -104,6 +104,22 @@ describe('evidence pack', () => {
         const entries = contentsUnder(path.dirname(pack!));
         expect(entries.some(([name]) => name.includes('.evidence!tests/'))).toBe(true);
         for (const [name, text] of entries) expect(text, name).not.toContain(PASSWORD);
+      } finally {
+        project.cleanup();
+      }
+    },
+    60_000,
+  );
+
+  it(
+    'keeps only the latest pack in its directory, so runs never pile up',
+    async () => {
+      const fake = createFakeEngine({ artifacts: true });
+      const { project } = await runProject({ 'tests/shop.e2e.ts': SUITE }, { appUrl: FAKE_APP_URL, config: fakeConfig(fake) });
+      try {
+        const second = await runExisting(project, { appUrl: FAKE_APP_URL, config: fakeConfig(createFakeEngine({ artifacts: true })) });
+        const pack = packIn(project.dir);
+        expect(pack!.endsWith(`${second.report.run.id}.evidence`)).toBe(true);
       } finally {
         project.cleanup();
       }

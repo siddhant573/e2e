@@ -45,8 +45,10 @@ describe('evidence option', () => {
 
   it('refuses a profile, an outDir, or a shape it does not know', () => {
     expect(() => resolve({ evidence: { profile: 'L2' } as never })).toThrow("evidence.profile must be 'L0' or 'L1', got \"L2\"");
-    expect(() => resolve({ evidence: { outDir: '../elsewhere' } })).toThrow(/evidence.outDir must be a directory inside the project/);
+    expect(() => resolve({ evidence: { outDir: '../elsewhere' } })).toThrow(/evidence.outDir "..\/elsewhere" must be a directory inside the project/);
     expect(() => resolve({ evidence: { output: 'x' } as never })).toThrow(/evidence has unknown key "output"/);
+    expect(() => resolve({ evidence: { outDir: '.e2e/cache/packs' } })).toThrow(/evidence.outDir .* is the cache directory .* or inside it/);
+    expect(() => resolve({ evidence: { outDir: '.e2e/artifacts/packs' } })).toThrow(/evidence.outDir .* is inside .*artifacts.*, which every run clears/);
     expect(() => resolve({ evidence: 'yes' as never })).toThrow(/evidence must be true, false, or \{ enabled\?, outDir\?, profile\? \}/);
   });
 
