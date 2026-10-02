@@ -147,6 +147,7 @@
                 "kind": "agent",
                 "api": "agent.assert",
                 "label": "the result is visible",
+                "argument": "visible",
                 "source": {
                   "file": "tests/example.e2e.ts",
                   "line": 3,

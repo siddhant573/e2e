@@ -83,8 +83,12 @@ failed result:
 - `error` contains the code, message, source line, and assertion details.
 - `failure` identifies the screen and screenshot artifacts and any locator
   candidates.
-- `steps` shows the calls leading to the failure. Failed agent steps include
-  recent model turns.
+- `steps` shows the calls leading to the failure. A step's `label` names its
+  target and `argument` what it was given: the text a fill typed, the key a
+  press sent, the value an assertion expected, or `<secret:name>` for a
+  secret. Text typed into a secure field (a password input) records
+  `<withheld>`, whether or not it came from a secret. Failed agent steps
+  include recent model turns.
 - `artifacts` lists the captured files.
 
 ## Artifacts

@@ -724,7 +724,7 @@ How a run maps onto the pack:
 | `run.yaml` | the run id, start and end, project id, runner version, platforms, commit, and model; token, cost, and artifact-size metrics |
 | `tests/t-<id>/` | one folder per selected result, named from the result id (the title is in `result.yaml`), so a test on two targets or under `--repeat-each` is two folders |
 | `result.yaml` | the verdict, every attempt, `flaky`, tags, and the final attempt's steps, each with its api as `kind`, label, duration, and cache mode |
-| `steps/<n>-<attempt>-<index>/` | `step.json` (the report's step record without model turns) and the step's frame as `screenshot.png` |
+| `steps/<n>-<attempt>-<index>/` | `step.json`: the viewer's fields (`summary`, a sentence such as `Fill getByLabel("Username") with "ada"`, plus `kind`, `status`, `duration_ms`, and `url` on an `app.open` or failing step) and the report's step record under `e2e`, without model turns; the step's frame as `screenshot.png` |
 | `failure.yaml` | on the failing step: the error, expected and actual (a matcher's, or an `agent.assert` instruction against its explanation), the locator, the URL, the failure frame, and the screen text |
 | `logs/` | the steps as `steps.ndjson`, agent turns as `agent.ndjson`, and the engine's trace when its redaction allows |
 

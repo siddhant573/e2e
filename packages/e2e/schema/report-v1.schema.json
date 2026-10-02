@@ -269,6 +269,7 @@
       "required": ["id", "index", "kind", "api", "label", "source", "status", "startedAt", "durationMs", "events", "artifacts"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
+        "argument": { "type": "string", "maxLength": 1024, "description": "What the step was given beside its target, redacted: typed text, a key, an expected value, or <secret:name>." },
         "index": { "type": "integer", "minimum": 0 },
         "kind": { "enum": ["agent", "locator", "assertion", "screen", "app", "session", "resource"] },
         "api": { "type": "string", "minLength": 1 },

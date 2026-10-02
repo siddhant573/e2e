@@ -34,7 +34,7 @@ import type {
   TextMatchOptions,
 } from '../types.ts';
 import type { StepRecorder } from '../run/steps.ts';
-import { attributeOf, denySecureRead, isNodeVisible, locatorDetails, type LocatorEngine } from './engine.ts';
+import { attributeOf, denySecureRead, isNodeVisible, locatorDetails, type LocatorEngine, type NodeInspector } from './engine.ts';
 import {
   describeExpression,
   filterExpression,
@@ -283,8 +283,22 @@ class LocatorImpl extends ScreenImpl implements Locator {
     return describeExpression(this.expression);
   }
 
-  private action(api: string, body: () => Promise<void>): Promise<void> {
-    return this.context.steps.run('locator', api, this.label, body);
+  /**
+   * Types `text` through `act`, then records it as the step's argument only
+   * when the field it went into was read and is not secure. A secure field,
+   * or one the read could not see, records `<withheld>`: plain text typed into
+   * a password field is as private as a secret.
+   */
+  private async typedInto(text: string, act: (inspect: NodeInspector) => Promise<void>): Promise<void> {
+    let shareable = false;
+    await act((node) => {
+      shareable = node !== null && node.states?.secure !== true;
+    });
+    this.context.steps.amendArgument(shareable ? JSON.stringify(text) : '<withheld>');
+  }
+
+  private action(api: string, body: () => Promise<void>, argument?: string): Promise<void> {
+    return this.context.steps.run('locator', api, this.label, body, argument === undefined ? {} : { argument });
   }
 
   /**
@@ -298,8 +312,10 @@ class LocatorImpl extends ScreenImpl implements Locator {
     options: ActionOptions | undefined,
   ): Promise<void> {
     rejectUnknownOptions(verb, options, ['timeout']);
-    return this.action(`locator.${verb}`, () =>
-      this.context.engine.perform(this.expression, action, options?.timeout),
+    return this.action(
+      `locator.${verb}`,
+      () => this.context.engine.perform(this.expression, action, options?.timeout),
+      typeof action === 'function' ? undefined : actionArgument(action),
     );
   }
 
@@ -370,15 +386,22 @@ class LocatorImpl extends ScreenImpl implements Locator {
     rejectUnknownOptions('fill', options, ['timeout']);
     const sensitive = isSecret(value);
     // Resolved inside the recorded step, so a failing provider fails the fill.
-    return this.action('locator.fill', async () =>
-      this.context.engine.perform(
-        this.expression,
-        {
-          kind: 'fill',
-          value: sensitive ? await this.context.secrets.resolve(value) : value,
-          sensitive,
-        },
-        options?.timeout,
+    if (sensitive) {
+      // A secret by its name only: the value never reaches the record.
+      return this.action(
+        'locator.fill',
+        async () =>
+          this.context.engine.perform(
+            this.expression,
+            { kind: 'fill', value: await this.context.secrets.resolve(value), sensitive },
+            options?.timeout,
+          ),
+        `<secret:${value.name}>`,
+      );
+    }
+    return this.action('locator.fill', () =>
+      this.typedInto(value, (inspect) =>
+        this.context.engine.perform(this.expression, { kind: 'fill', value, sensitive }, options?.timeout, inspect),
       ),
     );
   }
@@ -397,7 +420,9 @@ class LocatorImpl extends ScreenImpl implements Locator {
     const delay = validateDelay(options?.delay);
     const chunks = text.length === 0 ? [] : delay === undefined ? [text] : [...text];
     return this.action('locator.pressSequentially', () =>
-      this.context.engine.pressSequentially(this.expression, chunks, delay ?? 0, options?.timeout),
+      this.typedInto(text, (inspect) =>
+        this.context.engine.pressSequentially(this.expression, chunks, delay ?? 0, options?.timeout, inspect),
+      ),
     );
   }
 
@@ -669,4 +694,18 @@ function requireModifiers(value: unknown, api: string): { modifiers?: readonly K
     modifiers.push(modifier);
   }
   return modifiers.length === 0 ? {} : { modifiers };
+}
+
+/** What a locator action was given beside its node, as a step argument; undefined for one that takes nothing. */
+function actionArgument(action: LocatorAction): string | undefined {
+  switch (action.kind) {
+    case 'press':
+      return action.key;
+    case 'selectOption':
+      return JSON.stringify(action.value);
+    case 'setInputFiles':
+      return action.paths.map((file) => nodePath.basename(file)).join(', ');
+    default:
+      return undefined;
+  }
 }

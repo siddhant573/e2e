@@ -130,7 +130,8 @@ function planTest(report: Report1Document, result: ReportResult): TestPlan {
   const execution = executionOf(report, result);
   const artifacts = new Map((execution?.artifacts ?? []).map((artifact) => [artifact.id, artifact]));
   const failingIndex = execution === undefined ? -1 : failingStepIndex(execution);
-  const steps = (execution?.steps ?? []).map((step) => planStep(step, execution!, artifacts, step.index === failingIndex));
+  const baseOrigin = report.run.targets.find((target) => target.id === result.targetId)?.baseOrigin;
+  const steps = (execution?.steps ?? []).map((step) => planStep(step, execution!, artifacts, step.index === failingIndex, baseOrigin));
   const attempts = attemptsOf(report, result);
   return {
     dir,
@@ -239,6 +240,7 @@ function planStep(
   execution: Execution,
   artifacts: ReadonlyMap<string, ArtifactRecord>,
   failing: boolean,
+  baseOrigin: string | undefined,
 ): { summary: Json; plan: StepPlan } {
   const id = `${execution.attemptIndex}-${step.index}`;
   const ordinal = step.index + 1;
@@ -283,16 +285,92 @@ function planStep(
   }
 
   const { turns: _turns, ...record } = step;
+  const url = failing && execution.failure?.url !== undefined ? execution.failure.url : openedUrl(step, baseOrigin);
   return {
     summary,
     plan: {
       folder,
-      record: record as Json,
+      // The fields the evidence viewer reads, then the e2e record whole.
+      record: {
+        id,
+        kind: step.api,
+        status,
+        summary: stepSummary(step),
+        duration_ms: step.durationMs,
+        ...(url === undefined ? {} : { url }),
+        e2e: record,
+      },
       ...(screenshot === undefined ? {} : { screenshot }),
       ...(screen === undefined ? {} : { screen }),
       ...(failure === undefined ? {} : { failure }),
     },
   };
+}
+
+/** The page an `app.open` step opened, from the target's origin; other steps have no URL the report knows. */
+function openedUrl(step: ReportStep, baseOrigin: string | undefined): string | undefined {
+  if (step.api !== 'app.open') return undefined;
+  if (/^https?:\/\//.test(step.label)) return step.label;
+  if (baseOrigin === undefined) return undefined;
+  try {
+    return new URL(step.label === '' ? '/' : step.label, baseOrigin).href;
+  } catch {
+    return undefined;
+  }
+}
+
+const AGENT_VERBS: Readonly<Record<string, string>> = { 'agent.act': 'Act', 'agent.assert': 'Assert', 'agent.waitFor': 'Wait for', 'agent.extract': 'Extract' };
+const APP_VERBS: Readonly<Record<string, string>> = { 'app.open': 'Open', 'app.back': 'Go back', 'app.restart': 'Restart the app', 'app.clearState': 'Clear the app state', 'app.screenshot': 'Screenshot' };
+/** Agent actions a summary names before it trails off. */
+const MAX_SUMMARY_ACTIONS = 3;
+
+/** `doubleTap` as `double tap`. */
+function words(name: string): string {
+  return name.replace(/([A-Z])/g, ' $1').toLowerCase();
+}
+
+function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** One sentence for what a step did, from its api, its target, and what it was given. */
+function stepSummary(step: ReportStep): string {
+  const { api, label, argument } = step;
+  const agentVerb = AGENT_VERBS[api];
+  if (agentVerb !== undefined) {
+    const done = step.events.flatMap((event) => (event.kind === 'engine' && event.detail !== undefined ? [event.detail] : []));
+    const shown = done.slice(0, MAX_SUMMARY_ACTIONS).join(', ') + (done.length > MAX_SUMMARY_ACTIONS ? ', …' : '');
+    return `${agentVerb}: ${label}${shown === '' ? '' : ` (${shown})`}`;
+  }
+  const appVerb = APP_VERBS[api];
+  if (appVerb !== undefined) return [appVerb, label].filter((part) => part !== '').join(' ');
+  if (api.startsWith('expect.')) return expectationSummary(api, label, argument);
+  if (api.startsWith('locator.')) {
+    const verb = api.slice('locator.'.length);
+    if (argument !== undefined) {
+      if (verb === 'fill') return `Fill ${label} with ${argument}`;
+      if (verb === 'pressSequentially') return `Type ${argument} into ${label}`;
+      if (verb === 'press') return `Press ${argument} on ${label}`;
+      if (verb === 'selectOption') return `Select ${argument} in ${label}`;
+      if (verb === 'setInputFiles') return `Upload ${argument} to ${label}`;
+    }
+    return [capitalized(words(verb)), label, argument].filter((part) => part !== undefined && part !== '').join(' ');
+  }
+  return [api, label, argument].filter((part) => part !== undefined && part !== '').join(' ');
+}
+
+/** `Expect getByRole("alert") to have text "Saved"`, `Expect getByRole("dialog") not visible`. */
+function expectationSummary(api: string, label: string, argument: string | undefined): string {
+  const negated = api.startsWith('expect.not.');
+  const matcher = api.replace(/^expect\.(not\.)?/, '');
+  const not = negated ? 'not ' : '';
+  if (argument !== undefined && matcher.startsWith('toBe')) return `Expect ${label} ${not}${argument}`;
+  const phrase = words(matcher);
+  const noun = phrase.replace(/^to (have|contain|match) /, '');
+  if (argument === undefined) return `Expect ${not}${noun} ${label}`.trim();
+  // `toHaveText` expecting `text "Saved"` reads once: `to have text "Saved"`.
+  const value = argument.toLowerCase().startsWith(`${noun} `) ? argument.slice(noun.length + 1) : argument;
+  return `Expect ${label} ${not}${phrase} ${value}`;
 }
 
 /** The step stream, the agent's turns when it took any, and every trace whose redaction allows sharing. */
