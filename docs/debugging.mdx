@@ -98,9 +98,11 @@ Each run empties it first, so it holds the latest run's evidence. A
 reruns names, and writes its own under `rerun-<n>/`:
 
 - **Screenshots.** Failed attempts capture one whenever the engine can and
-  pixels are allowed. The built-in `agent.assert` also captures one after
+  pixels are allowed, unless [`screenshot: 'off'`](/reference/config#screenshot). The built-in `agent.assert` also captures one after
   either verdict unless `screenshot: false` disables it. Capture can fail or
-  be withheld. Use `app.screenshot('label')` to capture one explicitly.
+  be withheld. Use `app.screenshot('label')` to capture one explicitly, or
+  [`screenshot: 'every-step'`](/reference/config#screenshot) for one after
+  every step that passes.
 - **Playwright traces** on the attempts the [`trace`](/reference/config#trace)
   mode records: every attempt locally, the first retry in CI. Open one with
   `npx playwright-core@1.63.0 show-trace <file>` (`pnpm dlx` under pnpm);
