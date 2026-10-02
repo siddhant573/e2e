@@ -129,6 +129,7 @@ function planTest(report: Report1Document, result: ReportResult): TestPlan {
   const artifacts = new Map((execution?.artifacts ?? []).map((artifact) => [artifact.id, artifact]));
   const failingIndex = execution === undefined ? -1 : failingStepIndex(execution);
   const steps = (execution?.steps ?? []).map((step) => planStep(step, execution!, artifacts, step.index === failingIndex));
+  const attempts = attemptsOf(report, result);
   return {
     dir,
     definition: { source: result.file, name: path.posix.basename(result.file) },
@@ -138,8 +139,8 @@ function planTest(report: Report1Document, result: ReportResult): TestPlan {
       status: resultVerdict(result, execution),
       definition: { path: path.posix.basename(result.file) },
       external_id: { e2e_test_id: result.testId, e2e_result_id: result.id, target: result.targetId, agent: result.agent, repeat: result.repeat },
-      duration_ms: result.attempts.reduce((total, attempt) => total + attempt.durationMs, 0),
-      attempts: result.attempts.map((attempt) => ({ status: attemptVerdict(attempt.status, attempt.error), duration_ms: attempt.durationMs })),
+      duration_ms: attempts.reduce((total, attempt) => total + attempt.duration_ms, 0),
+      ...(attempts.length === 0 ? {} : { attempts }),
       ...(result.status === 'flaky' ? { flaky: true } : {}),
       ...(result.tags.length === 0 ? {} : { tags: result.tags }),
       steps: steps.map((entry) => entry.summary),
@@ -174,6 +175,18 @@ function executionOf(report: Report1Document, result: ReportResult): Execution |
   const attempt = result.attempts.at(-1);
   if (attempt === undefined) return undefined;
   return { attemptIndex: attempt.index, steps: attempt.steps, artifacts: attempt.artifacts, error: attempt.error, failure: attempt.failure };
+}
+
+/** Every attempt of a result: its own, or for a serial member its record in each of its group's attempts. */
+function attemptsOf(report: Report1Document, result: ReportResult): { status: Verdict; duration_ms: number }[] {
+  if (result.serialGroupId !== undefined) {
+    const group = report.run.serialGroups.find((candidate) => candidate.id === result.serialGroupId);
+    return (group?.attempts ?? []).flatMap((attempt) => {
+      const member = attempt.members.find((candidate) => candidate.testId === result.testId);
+      return member === undefined ? [] : [{ status: attemptVerdict(member.status, member.error), duration_ms: member.durationMs }];
+    });
+  }
+  return result.attempts.map((attempt) => ({ status: attemptVerdict(attempt.status, attempt.error), duration_ms: attempt.durationMs }));
 }
 
 /** The step the failure landed on: the last one that did not pass. */

@@ -115,6 +115,11 @@ describe('planPack: the run', () => {
     expect(planPack(inCi).run['environment']).toMatchObject({ ci: { detected: true } });
   });
 
+  it('writes no attempts for a result that never ran one', () => {
+    const plan = planPack(report([result([], { status: 'skipped' })]));
+    expect(plan.tests[0]!.result).not.toHaveProperty('attempts');
+  });
+
   it('leaves out results the selection did not choose', () => {
     const plan = planPack(report([result([attempt([step()])]), result([], { selected: false, status: 'skipped' })]));
     expect(plan.tests).toHaveLength(1);
@@ -256,5 +261,8 @@ describe('planPack: serial groups', () => {
     expect(test.result['status']).toBe('failed');
     expect(test.result['steps']).toEqual([expect.objectContaining({ id: '0-0', status: 'failed' })]);
     expect(test.steps[0]!.failure).toBeDefined();
+    // A member has no attempts of its own; its group's attempts are its attempts, and the format requires at least one.
+    expect(test.result['attempts']).toEqual([{ status: 'failed', duration_ms: 5 }]);
+    expect(test.result['duration_ms']).toBe(5);
   });
 });
