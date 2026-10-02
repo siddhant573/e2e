@@ -1426,7 +1426,14 @@ export class AgentDeviceSurface {
     writeFileSync(path.join(attempt.artifactsDir, relative), masked.data);
     // Node boxes are in points; the image is in device pixels, so the viewport says how to place one on the other.
     // A screen whose snapshot had no geometry yet is measured from the screenshot's own logical size.
-    if (this.knownViewport === undefined) this.knownViewport = await this.probeViewport(operation.signal).catch(() => undefined);
+    if (this.knownViewport === undefined) {
+      try {
+        this.knownViewport = await this.probeViewport(operation.signal);
+      } catch (cause) {
+        // A probe that failed costs the frame its viewport; a cancellation still cancels the screenshot.
+        if (operation.signal.aborted) throw cause;
+      }
+    }
     return { path: relative, ...(this.knownViewport === undefined ? {} : { viewport: this.knownViewport }) };
   }
 

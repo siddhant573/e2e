@@ -960,6 +960,28 @@ describe('session hooks, viewport swipe, location, artifacts', () => {
     expect(await location(cold)).toBeUndefined();
   });
 
+  it('a cancellation during the viewport probe fails the screenshot instead of returning it without a viewport', async () => {
+    const h = harness();
+    const image = { width: 390, height: 844, channels: 3 as const, pixels: new Uint8Array(390 * 844 * 3).fill(200) };
+    let captures = 0;
+    const controller = new AbortController();
+    h.fake.respond('capture.screenshot', (args) => {
+      captures += 1;
+      const file = (args as { path: string }).path;
+      if (captures === 1) {
+        writeFileSync(file, encodePng(image));
+        return { path: file };
+      }
+      // The probe for the screen's logical size: cancelled while it is in flight.
+      controller.abort();
+      return new Promise(() => undefined);
+    });
+    // A screen whose snapshot has no geometry, so the screenshot has to probe for its size.
+    h.fake.respond('capture.snapshot', () => ({ nodes: [] }));
+    await openAttempt(h);
+    await expect(h.engine.artifacts!.screenshot('probe', operation(controller.signal))).rejects.toMatchObject({ code: 'CANCELLED' });
+  });
+
   it('numbers screenshots per attempt, masks secure fields in them, and refuses an unmaskable one', async () => {
     const h = harness();
     // A third of the 390x844 viewport: the mask scales the Password field's bounds (y=270, 44 tall) to the image.

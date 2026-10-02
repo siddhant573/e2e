@@ -22,8 +22,8 @@ export function evidenceReporter(options: ResolvedEvidence): Reporter {
   return {
     name: 'evidence',
     async onRunFinished(run, signal): Promise<ReporterSummary> {
-      // A run that stopped before its tests leaves the previous run's output, the pack included, where it is.
-      if (run.reportPath === undefined) return [{ label: 'Evidence', text: 'not written: the run stopped before its tests' }];
+      // No report was written (the run stopped before its tests, or the write failed): the pack follows the report, and the previous one stays.
+      if (run.reportPath === undefined) return [{ label: 'Evidence', text: 'not written: the run wrote no report' }];
       const report = run.report;
       const packDir = path.join(options.outDir, `${sanitizePathSegment(report.run.id)}.evidence`);
       const shown = (file: string): string => path.relative(run.projectRoot, file) || file;

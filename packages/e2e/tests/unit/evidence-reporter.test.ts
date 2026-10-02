@@ -23,6 +23,6 @@ describe('evidenceReporter', () => {
     const summary = await evidenceReporter({ outDir, profile: 'L1' }).onRunFinished!(run, new AbortController().signal);
     expect(existsSync(path.join(outDir, 'previous.evidence'))).toBe(true);
     expect(existsSync(path.join(outDir, 'r2.evidence'))).toBe(false);
-    expect(summary).toEqual([{ label: 'Evidence', text: 'not written: the run stopped before its tests' }]);
+    expect(summary).toEqual([{ label: 'Evidence', text: 'not written: the run wrote no report' }]);
   });
 });
