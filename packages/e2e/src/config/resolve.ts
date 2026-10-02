@@ -620,6 +620,7 @@ interface RunScreenshot {
   readonly fallback: ScreenshotMode;
 }
 
+/** The run's screenshot mode before any target speaks, from the flag and the config root. */
 function runScreenshot(raw: E2EConfig, cli: CliOverrides): RunScreenshot {
   return {
     cli: screenshotMode(cli.screenshot, '--screenshot'),
