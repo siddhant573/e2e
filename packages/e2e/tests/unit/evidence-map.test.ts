@@ -176,6 +176,23 @@ describe('planPack: identity and steps', () => {
     expect(plan.tests[0]!.result['external_id']).toMatchObject({ e2e_test_id: 'tests/a.e2e.ts::saves', target: 'web', agent: 'default', repeat: 0 });
   });
 
+  it('names each test by its title path, the name the viewer lists and heads it with', () => {
+    const plan = planPack(report([
+      result([attempt([step()])], { titlePath: ['sign in', 'wrong credentials surface an alert'] }),
+      result([attempt([step()])], { titlePath: ['checkout'], targetId: 'phone' }),
+      result([attempt([step()])], { titlePath: ['checkout'], targetId: 'web' }),
+      result([attempt([step()])], { titlePath: ['checkout'], targetId: 'web', repeat: 1 }),
+      result([attempt([step()])], { titlePath: ['checkout'], targetId: 'web', agent: 'thorough' }),
+    ]));
+    expect(plan.tests.map((test) => (test.result['external_id'] as { session_name: string }).session_name)).toEqual([
+      'sign in › wrong credentials surface an alert',
+      'checkout · phone',
+      'checkout · web',
+      'checkout · web · repeat 2',
+      'checkout · web · agent thorough',
+    ]);
+  });
+
   it('numbers steps from one, ids them by attempt and index, and kinds them by api', () => {
     const plan = planPack(report([result([attempt([step({ index: 0, api: 'app.open', label: '/' }), step({ index: 1 })], { index: 2 })])]));
     expect(plan.tests[0]!.result['steps']).toEqual([
