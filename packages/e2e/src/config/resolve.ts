@@ -26,6 +26,7 @@ import type {
   SecretPurpose,
   RecordingMode,
   ScreenshotMode,
+  EvidenceConfig,
   CacheStore,
 } from '../types.ts';
 import { isModelInstance, resolveAgentConfig, runLimits, type ResolvedAgentConfig, type ResolvedLimits } from './agent.ts';
@@ -76,6 +77,8 @@ export interface ResolvedConfig {
   readonly reporters: readonly BuiltinReporter[];
   /** The reporter objects the config names; `--reporter` never removes one. */
   readonly customReporters: readonly Reporter[];
+  /** The evidence pack the run writes; undefined when evidence is off. */
+  readonly evidence: ResolvedEvidence | undefined;
   /**
    * The agents unpinned tests run as, one result each: `agents.default`, or
    * the names `--agent` gave, in order and deduplicated. Never empty.
@@ -96,6 +99,13 @@ export interface ResolvedConfig {
    */
   readonly allSecrets: ReadonlyMap<string, ResolvedSecret>;
   readonly configDigest: string;
+}
+
+/** Where the run's evidence pack goes, and the profile it is validated at. */
+export interface ResolvedEvidence {
+  /** Absolute directory the `<runId>.evidence` pack is written in. */
+  readonly outDir: string;
+  readonly profile: 'L0' | 'L1';
 }
 
 /**
@@ -144,6 +154,8 @@ export interface CliOverrides {
   video?: RecordingMode;
   /** `--screenshot <mode>`: which steps the runner screenshots, over the config's and every target's `screenshot`. */
   screenshot?: ScreenshotMode;
+  /** `--no-evidence`: the run writes no evidence pack, whatever the config and `E2E_EVIDENCE` say. */
+  evidence?: false;
   /** `--agent`: the configured agents unpinned tests run as, instead of `default` alone. */
   agents?: readonly string[];
 }
@@ -164,6 +176,7 @@ const TOP_LEVEL_KEYS = new Set([
   'trace',
   'video',
   'screenshot',
+  'evidence',
   'reporters',
   'agents',
   'cache',
@@ -248,7 +261,8 @@ export function resolveConfig(
   }
 
   const recordings = runRecordings(raw, cli, ci);
-  const screenshot = runScreenshot(raw, cli);
+  const evidenceOn = evidenceEnabled(raw.evidence, env, cli);
+  const screenshot = runScreenshot(raw, cli, evidenceOn);
   const targets = resolveTargets(raw.targets, options.projectRoot, (target, where) => ({
     trace: targetRecording(recordings.trace, target.trace, `${where} trace`, 'trace'),
     video: targetRecording(recordings.video, target.video, `${where} video`, 'video'),
@@ -283,6 +297,7 @@ export function resolveConfig(
   const limits = runLimits(agents.values());
   const cache = resolveCacheConfig(raw, ci, options.projectRoot, cli.cache, cli.cacheStrict === true);
   const output = resolveOutput(raw.output, cli.output, options.projectRoot, cache.dir, tests);
+  const evidence = evidenceOn ? resolveEvidence(raw.evidence, options.projectRoot, output) : undefined;
 
   const resolved: ResolvedConfig = {
     projectId,
@@ -303,6 +318,7 @@ export function resolveConfig(
     output,
     reporters,
     customReporters,
+    evidence,
     agentNames,
     agent,
     agents,
@@ -621,12 +637,67 @@ interface RunScreenshot {
 }
 
 /** The run's screenshot mode before any target speaks, from the flag and the config root. */
-function runScreenshot(raw: E2EConfig, cli: CliOverrides): RunScreenshot {
+function runScreenshot(raw: E2EConfig, cli: CliOverrides, evidence: boolean): RunScreenshot {
   return {
     cli: screenshotMode(cli.screenshot, '--screenshot'),
     config: screenshotMode(raw.screenshot, 'screenshot'),
-    fallback: 'on-failure',
+    // An evidence pack shows each step by its frame, so evidence asks for one per step unless someone chose otherwise.
+    fallback: evidence ? 'every-step' : 'on-failure',
   };
+}
+
+const EVIDENCE_KEYS: ReadonlySet<string> = new Set(['enabled', 'outDir', 'profile']);
+const EVIDENCE_OFF_VALUES: ReadonlySet<string> = new Set(['0', 'false', 'off']);
+
+/**
+ * Whether the run writes an evidence pack: `--no-evidence` first, then
+ * `E2E_EVIDENCE` (`0`, `false`, or `off` turn it off; any other value is
+ * ignored), then the config, then on.
+ */
+function evidenceEnabled(value: unknown, env: NodeJS.ProcessEnv, cli: CliOverrides): boolean {
+  checkEvidenceShape(value);
+  if (cli.evidence === false) return false;
+  const fromEnv = env['E2E_EVIDENCE']?.trim().toLowerCase();
+  if (fromEnv !== undefined && EVIDENCE_OFF_VALUES.has(fromEnv)) return false;
+  if (value === false) return false;
+  if (typeof value === 'object' && value !== null && (value as EvidenceConfig).enabled === false) return false;
+  return true;
+}
+
+function checkEvidenceShape(value: unknown): void {
+  if (value === undefined || typeof value === 'boolean') return;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new ConfigurationError('INVALID_CONFIG', `evidence must be true, false, or { enabled?, outDir?, profile? }, got ${describeValue(value)}`);
+  }
+  for (const key of Object.keys(value)) {
+    if (!EVIDENCE_KEYS.has(key)) {
+      throw new ConfigurationError('INVALID_CONFIG', `evidence has unknown key "${key}"; evidence is { enabled?, outDir?, profile? }${didYouMean(key, [...EVIDENCE_KEYS])}`);
+    }
+  }
+  const { enabled, profile, outDir } = value as Record<string, unknown>;
+  if (enabled !== undefined && typeof enabled !== 'boolean') {
+    throw new ConfigurationError('INVALID_CONFIG', `evidence.enabled must be a boolean, got ${describeValue(enabled)}`);
+  }
+  if (profile !== undefined && profile !== 'L0' && profile !== 'L1') {
+    throw new ConfigurationError('INVALID_CONFIG', `evidence.profile must be 'L0' or 'L1', got ${describeValue(profile)}`);
+  }
+  if (outDir !== undefined && (typeof outDir !== 'string' || outDir.trim() === '')) {
+    throw new ConfigurationError('INVALID_CONFIG', `evidence.outDir must be a non-empty path relative to the project root, got ${describeValue(outDir)}`);
+  }
+}
+
+/** The pack's directory and profile, for a run that writes one. */
+function resolveEvidence(value: unknown, projectRoot: string, output: string): ResolvedEvidence {
+  const settings = typeof value === 'object' && value !== null ? (value as EvidenceConfig) : {};
+  const outDir = settings.outDir === undefined ? path.join(output, 'evidence') : path.resolve(projectRoot, settings.outDir);
+  if (settings.outDir !== undefined) {
+    const root = realpathOfExisting(projectRoot);
+    const real = realpathOfExisting(outDir);
+    if (real === root || !isWithin(real, root)) {
+      throw new ConfigurationError('INVALID_CONFIG', `evidence.outDir must be a directory inside the project, not its root, got ${JSON.stringify(settings.outDir)}`);
+    }
+  }
+  return { outDir, profile: settings.profile ?? 'L1' };
 }
 
 /**
@@ -950,6 +1021,7 @@ function computeConfigDigest(
     trace: _trace,
     video: _video,
     screenshot: _screenshot,
+    evidence: _evidence,
     targets: _targets,
     credentials: _credentials,
     secrets: _secrets,

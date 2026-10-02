@@ -91,12 +91,12 @@ describe('screenshot mode', () => {
   );
 
   it(
-    'takes no step frames by default, and no failure frame with off',
+    'takes no step frames by default with evidence off, and no failure frame with off',
     async () => {
       const fake = createFakeEngine({ artifacts: true });
       const { outcome, project } = await runProject(
         { 'tests/shots.e2e.ts': SUITE },
-        { appUrl: FAKE_APP_URL, config: fakeConfig(fake) },
+        { appUrl: FAKE_APP_URL, config: fakeConfig(fake, { evidence: false }) },
       );
       try {
         const passed = reported(outcome, 'opens and taps').attempts.at(-1)!;

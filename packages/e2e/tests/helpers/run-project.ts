@@ -73,10 +73,17 @@ function filesUnder(dir: string): string[] {
 export function contentsUnder(dir: string): [string, string][] {
   return filesUnder(dir).flatMap((file) => {
     const bytes = readFileSync(file);
-    const entries = file.endsWith('.zip')
-      ? readZip(bytes).map((entry) => [`${file}!${entry.name}`, inflateEntry(entry).toString('latin1')] as [string, string])
-      : [];
-    return [[file, bytes.toString('latin1')], ...entries];
+    return [[file, bytes.toString('latin1')], ...archiveContents(file, bytes)];
+  });
+}
+
+/** Every entry of a `.zip` or a sealed `.evidence` pack, and of the archives inside it (a pack holds trace zips), as text. */
+function archiveContents(name: string, bytes: Uint8Array): [string, string][] {
+  if (!name.endsWith('.zip') && !name.endsWith('.evidence')) return [];
+  return readZip(bytes).flatMap((entry) => {
+    const inner = inflateEntry(entry);
+    const entryName = `${name}!${entry.name}`;
+    return [[entryName, inner.toString('latin1')] as [string, string], ...archiveContents(entryName, inner)];
   });
 }
 

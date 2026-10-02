@@ -113,11 +113,16 @@ export interface E2EConfig {
    */
   video?: RecordingMode;
   /**
-   * Which steps the runner screenshots; default `on-failure`. A target's
-   * `screenshot` wins over it, `--screenshot <mode>` over both, and a test's
-   * own `screenshot` over all.
+   * Which steps the runner screenshots; default `every-step` while
+   * `evidence` is on, else `on-failure`. A target's `screenshot` wins over
+   * it, `--screenshot <mode>` over both, and a test's own `screenshot` over all.
    */
   screenshot?: ScreenshotMode;
+  /**
+   * The sealed `.evidence` pack each run writes; on by default. `false`, or
+   * `E2E_EVIDENCE=0` / `--no-evidence` for one run, writes none.
+   */
+  evidence?: boolean | EvidenceConfig;
   /**
    * The results directory, relative to the project root; default `.e2e`.
    * `--output <dir>` overrides it for one run.
@@ -654,8 +659,8 @@ export type ScreenshotMode = 'on-failure' | 'every-step' | 'off';
 
 | Mode | Screenshots |
 | --- | --- |
-| `on-failure` (default) | one when an attempt fails, as `failure.screenshot` in the report |
-| `every-step` | also one after every top-level step that passes, attached to that step |
+| `on-failure` | one when an attempt fails, as `failure.screenshot` in the report; the default when [`evidence`](#evidence) is off |
+| `every-step` | also one after every top-level step that passes, attached to that step; the default while `evidence` is on |
 | `off` | none from the runner; the failure screen text is still kept |
 
 Under `every-step` the frame is taken once the step's work is done, so a
@@ -681,6 +686,59 @@ config, a target's `screenshot`, `--screenshot <mode>` on
 enters the config digest, so changing it never invalidates cached replays.
 
 A frame after every step costs one engine screenshot per step.
+
+## evidence
+
+```ts
+evidence: { outDir: 'test-results/evidence' },
+```
+
+Every run writes one sealed `.evidence` pack, `<output>/evidence/<runId>.evidence`,
+in the open format [`@testmuai/evidence-cli`](https://github.com/LambdaTest/evidence-cli)
+defines: one folder per test with its source file, a `result.yaml` of its
+steps and verdict, a frame per step, a `failure.yaml` on the step a failure
+landed on, and logs. The pack is a zip that tools built on that format read
+and validate, the run's results as one shareable file.
+
+```ts
+export interface EvidenceConfig {
+  /** Whether the run writes one; default true. */
+  enabled?: boolean;
+  /** The directory the pack goes in, relative to the project root; default `<output>/evidence`. */
+  outDir?: string;
+  /** The evidence profile the pack is validated at; default `L1` (artifacts included). */
+  profile?: 'L0' | 'L1';
+}
+```
+
+`evidence: false` (or `{ enabled: false }`) writes none, and so does
+`E2E_EVIDENCE=0` (`false` and `off` too) or `--no-evidence` for one run,
+whatever the config says. While evidence is on, [`screenshot`](#screenshot)
+defaults to `every-step`; set `screenshot` to keep the pack without the
+per-step cost.
+
+How a run maps onto the pack:
+
+| Pack | From the run |
+| --- | --- |
+| `run.yaml` | the run id, start and end, project id, runner version, platforms, commit, and model; token, cost, and artifact-size metrics |
+| `tests/<title>-<id>/` | one folder per selected result, so a test on two targets or under `--repeat-each` is two folders |
+| `result.yaml` | the verdict, every attempt, `flaky`, tags, and the final attempt's steps, each with its api as `kind`, label, duration, and cache mode |
+| `steps/<n>-<attempt>-<index>/` | `step.json` (the report's step record without model turns) and the step's frame as `screenshot.png` |
+| `failure.yaml` | on the failing step: the error, expected and actual (a matcher's, or an `agent.assert` instruction against its explanation), the locator, the URL, the failure frame, and the screen text |
+| `logs/` | the steps as `steps.ndjson`, agent turns as `agent.ndjson`, and the Playwright trace when its redaction allows |
+
+The format separates `failed`, the app was wrong, from `broken`, the check
+could not decide. Only `ASSERTION_FAILED` is `failed`; every other failure (an
+inconclusive judgment, a locator that matched nothing, a timeout) is
+`broken`. Only artifacts recorded `complete` or `not-required` are copied, so
+videos and binary downloads never go in; `command.log` and console output
+stay out too. A value `agent.extract` returned is not copied either.
+
+The pack is written after the run, as a reporter: a pack that cannot be
+written or does not validate is a line in the run summary and never changes
+the run's status or exit code. Changing `evidence` never invalidates cached
+replays.
 
 ## agents
 

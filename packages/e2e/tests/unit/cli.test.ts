@@ -355,6 +355,14 @@ describe('e2e run argument parsing', () => {
     expect(lastRunOptions()).toMatchObject({ trace: undefined, video: undefined });
   });
 
+  it('passes --no-evidence through, and nothing without it', async () => {
+    await invoke('run', '--no-evidence');
+    expect(lastRunOptions()).toMatchObject({ noEvidence: true });
+    runMock.mockClear();
+    await invoke('run');
+    expect(lastRunOptions()).toMatchObject({ noEvidence: false });
+  });
+
   it('parses --screenshot, and refuses a value that is not a mode', async () => {
     await invoke('run', '--screenshot', 'every-step');
     expect(lastRunOptions()).toMatchObject({ screenshot: 'every-step' });
@@ -653,6 +661,7 @@ describe('e2e --version and --help', () => {
       '--ai-trace',
       '--trace',
       '--video',
+      '--no-evidence',
       '--screenshot',
       '-h',
     ]);

@@ -108,6 +108,13 @@ describe('planPack: the run', () => {
     expect(plan.coverage).toMatchObject({ summary: { discovered: 1 } });
   });
 
+  it('records CI as the object the format asks for, and only when the run was in CI', () => {
+    expect(planPack(report([])).run['environment']).not.toHaveProperty('ci');
+    const inCi = report([]);
+    (inCi.run.environment as { ci: boolean }).ci = true;
+    expect(planPack(inCi).run['environment']).toMatchObject({ ci: { detected: true } });
+  });
+
   it('leaves out results the selection did not choose', () => {
     const plan = planPack(report([result([attempt([step()])]), result([], { selected: false, status: 'skipped' })]));
     expect(plan.tests).toHaveLength(1);
