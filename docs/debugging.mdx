@@ -114,6 +114,10 @@ reruns names, and writes its own under `rerun-<n>/`:
   marks `complete`.
 - **Videos** and **agent transcripts** when you ask for them; see below.
 
+Beside the report, `.e2e/evidence/<runId>.evidence` holds the run as one
+sealed [evidence pack](/reference/config#evidence): each test's steps, a
+frame per step, and a failure record on the step that failed.
+
 After a secret fill, no screenshots are taken for the rest of the attempt; see
 [screenshots after a secret fill](/security#screenshots-after-a-secret-fill).
 

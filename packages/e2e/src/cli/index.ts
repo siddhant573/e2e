@@ -556,6 +556,7 @@ function createProgram(version: string, telemetry: Telemetry): Command {
     .option('--ai-trace', 'record every model call to <output>/ai-trace.json (unbox-ai)')
     .option('--trace [mode]', `which attempts record a trace: ${RECORDING_MODES.join(', ')} (bare: on), over the config and every target`, parseRecordingMode('--trace'))
     .option('--video [mode]', `which attempts record a video: ${RECORDING_MODES.join(', ')} (bare: on), over the config and every target`, parseRecordingMode('--video'))
+    .option('--no-evidence', 'write no evidence pack this run, whatever the config and E2E_EVIDENCE say')
     .option('--screenshot <mode>', `which steps the runner screenshots: ${SCREENSHOT_MODES.join(', ')}, over the config and every target`, parseScreenshotMode)
     .addHelpText(
       'after',
@@ -607,6 +608,7 @@ function createProgram(version: string, telemetry: Telemetry): Command {
           trace?: RecordingMode | true;
           video?: RecordingMode | true;
           screenshot?: ScreenshotMode;
+          evidence?: boolean;
         },
         command: Command,
       ) => {
@@ -632,6 +634,7 @@ function createProgram(version: string, telemetry: Telemetry): Command {
             trace: recordingOption(options.trace),
             video: recordingOption(options.video),
             screenshot: options.screenshot,
+            noEvidence: options.evidence === false,
             interruptSignal: signals.interruptSignal,
             forceSignal: signals.forceSignal,
           }),

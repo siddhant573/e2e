@@ -14,8 +14,9 @@ function target(extra: Partial<Target> = {}): Target {
   return { name: 'web', platform: 'web', engine, ...extra };
 }
 
+/** Resolves with evidence off, so the default under test is the screenshot mode's own (evidence-config.test.ts covers the other). */
 function resolve(raw: Partial<E2EConfig>, cli: CliOverrides = {}) {
-  return resolveConfig({ targets: [target()], ...raw }, { projectRoot: ROOT, env: {}, cli });
+  return resolveConfig({ targets: [target()], evidence: false, ...raw }, { projectRoot: ROOT, env: {}, cli });
 }
 
 function failure(raw: Partial<E2EConfig>, cli: CliOverrides = {}): { code: string; message: string } {

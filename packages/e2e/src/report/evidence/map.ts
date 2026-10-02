@@ -107,7 +107,7 @@ function runEnvironment(report: Report1Document): Json {
     os: run.environment.os,
     arch: run.environment.arch,
     runtime: run.environment.runtime,
-    ci: run.environment.ci ? 'true' : 'false',
+    ...(run.environment.ci ? { ci: { detected: true } } : {}),
     ...(models.size === 0 ? {} : { model: [...models].join(', ') }),
     ...(run.vcs === undefined ? {} : { vcs: run.vcs }),
   };
@@ -260,7 +260,7 @@ function planStep(
       status: status === 'passed' ? errorVerdict(error) : status,
       title: step.label === '' ? step.api : step.label,
       error: { message: error.message, code: error.code },
-      ...(claim ?? {}),
+      ...claim,
       ...(typeof locator === 'string' ? { locator_context: { locator } } : {}),
       ...(Object.keys(pageState).length === 0 ? {} : { page_state: pageState }),
     };

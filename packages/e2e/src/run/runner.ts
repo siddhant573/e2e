@@ -31,6 +31,7 @@ import type { ExploreProgress } from '../explore/progress.ts';
 import { buildReport, type Report1Document, type ReportExplore, type TargetProvenance } from '../report/build.ts';
 import { agentStepTable } from '../report/debug-steps.ts';
 import { STATELESS_REPORTERS } from '../report/builtin.ts';
+import { evidenceReporter } from '../report/evidence/reporter.ts';
 import { ListReporter } from '../report/list.ts';
 import { writeJsonReport } from '../report/write.ts';
 import { createRunEventEmitter, toEventResult, type RunEventSink, type RunExitCode, type RunStatus, type RunEventFact, type SetupStep } from './events.ts';
@@ -126,6 +127,8 @@ export interface RunOptions {
   video?: RecordingMode | undefined;
   /** Which steps the runner screenshots (`--screenshot <mode>`), over the config's and every target's `screenshot`. */
   screenshot?: ScreenshotMode | undefined;
+  /** `--no-evidence`: write no evidence pack this run, whatever the config and `E2E_EVIDENCE` say. */
+  noEvidence?: boolean | undefined;
   /**
    * A config value instead of a discovered file, for the test harness. May
    * hold live values (executors, engine handles, model instances, cache
@@ -325,6 +328,7 @@ export async function run(options: RunOptions = {}): Promise<RunOutcome> {
   if (options.trace !== undefined) cli.trace = options.trace;
   if (options.video !== undefined) cli.video = options.video;
   if (options.screenshot !== undefined) cli.screenshot = options.screenshot;
+  if (options.noEvidence === true) cli.evidence = false;
   if (options.agent !== undefined) cli.agents = typeof options.agent === 'string' ? [options.agent] : options.agent;
 
   // Config resolves before anything is emitted, and its failure is kept rather
@@ -352,6 +356,8 @@ export async function run(options: RunOptions = {}): Promise<RunOutcome> {
     ...(listReporter === undefined ? [] : [listReporter]),
     ...reporterIds.filter((id) => id !== 'list').map((id) => STATELESS_REPORTERS[id]),
     ...(loaded.config?.customReporters ?? []),
+    // Not an id `--reporter` names: the pack is on unless evidence is off, whatever renders the terminal.
+    ...(loaded.config?.evidence === undefined ? [] : [evidenceReporter(loaded.config.evidence)]),
   ];
   const emit = createRunEventEmitter([
     ...activeReporters.map((reporter) =>

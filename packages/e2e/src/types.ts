@@ -1137,6 +1137,16 @@ export type RecordingMode = 'off' | 'on' | 'retain-on-failure' | 'on-first-retry
  */
 export type ScreenshotMode = 'on-failure' | 'every-step' | 'off';
 
+/** Where and how a run writes its `.evidence` pack. */
+export interface EvidenceConfig {
+  /** Whether the run writes one; default true. */
+  enabled?: boolean;
+  /** The directory the pack goes in, relative to the project root; default `<output>/evidence`. */
+  outDir?: string;
+  /** The evidence profile the pack is validated at; default `L1` (artifacts included). */
+  profile?: 'L0' | 'L1';
+}
+
 /**
  * A live AI SDK language model instance: `gateway('openai/gpt-6-luna-fast')`
  * from `ai`, `openrouter(...)` from `@openrouter/ai-sdk-provider`,
@@ -1456,9 +1466,16 @@ export interface E2EConfig {
   /**
    * Which steps the runner screenshots; default `on-failure`. A target's
    * `screenshot` wins over it, `--screenshot <mode>` over both, and a test's
-   * own `screenshot` over all.
+   * own `screenshot` over all. While `evidence` is on, the default is
+   * `every-step`.
    */
   screenshot?: ScreenshotMode;
+  /**
+   * The sealed `.evidence` pack each run writes: on by default. `false`, or
+   * `E2E_EVIDENCE=0` / `--no-evidence` for one run, writes none. While it is
+   * on, `screenshot` defaults to `every-step`.
+   */
+  evidence?: boolean | EvidenceConfig;
   /**
    * The directory a run writes its results to, relative to the project root;
    * default `.e2e`. It holds `report.json`, `junit.xml`, `summary.md`,
