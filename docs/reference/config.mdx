@@ -696,7 +696,7 @@ evidence: { outDir: 'test-results/evidence' },
 Every `e2e run` writes one sealed `.evidence` pack, `<output>/evidence/<runId>.evidence`,
 in the open format [`@testmuai/evidence-cli`](https://github.com/LambdaTest/evidence-cli)
 defines: one folder per test with its source file, a `result.yaml` of its
-steps and verdict, a frame per step, a `failure.yaml` on the step a failure
+steps and verdict, a frame for each step the runner could capture (none with `screenshot: 'off'`, after a secret fill, or on an engine without screenshots), a `failure.yaml` on the step a failure
 landed on, and logs. The pack is a zip that tools built on that format read
 and validate, the run's results as one shareable file.
 

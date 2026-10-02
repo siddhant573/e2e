@@ -58,7 +58,7 @@ suites that consume the built packages the way a user would.
     are module-private, not a library for other products.
     `src/report/evidence/` is the built-in evidence reporter: it maps the
     finished report onto the `.evidence` pack layout and seals and validates
-    it through `@testmuai/evidence-cli`, the only file that imports it. `tests/live/` holds hand-run
+    it through `@testmuai/evidence-cli`, the only `src/` file that imports it. `tests/live/` holds hand-run
     checks that need a stored login and are never part of `pnpm test`.
 - `packages/web` — the published `@e2e-dev/web` package: the
   browser engine, built with the public `defineEngine`, contributing the

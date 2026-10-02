@@ -189,7 +189,7 @@ jobs:
           E2E_MOBILE_BENCHMARK_IOS_APP: ${{ steps.app.outputs.app-path }}
           E2E_MOBILE_BENCHMARK_COMMENT: ios${{ env.SUITE == 'agentic' && ' agent' || '' }}
           E2E_RUN: node node_modules/e2e/dist/cli/bin.js run --target ios-simulator ${{ env.SUITE == 'agentic' && '--config e2e.agent.config.ts --output .e2e/agent' || '' }}
-        run: $E2E_RUN || $E2E_RUN --last-failed
+        run: $E2E_RUN || E2E_EVIDENCE=0 $E2E_RUN --last-failed
       # The artifact upload below fails whenever the repository's quota is
       # full, so the failure evidence goes into the log as well.
       - name: Failure screens
@@ -204,7 +204,8 @@ jobs:
       # The run's evidence pack, uploaded alone so the hosted viewer opens it
       # straight from this run (it reads an Actions artifact holding one .evidence
       # file); the link goes to the job summary, which a fork's read-only token can
-      # still write.
+      # still write. The `--last-failed` retry writes no pack, so this is the
+      # first, full pass, failures included.
       - name: Upload evidence
         id: evidence
         if: ${{ !cancelled() }}
@@ -322,7 +323,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics
           disable-animations: true
           working-directory: apps/mobile-benchmark
-          script: $E2E_RUN || $E2E_RUN --last-failed
+          script: $E2E_RUN || E2E_EVIDENCE=0 $E2E_RUN --last-failed
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -342,7 +343,8 @@ jobs:
       # The run's evidence pack, uploaded alone so the hosted viewer opens it
       # straight from this run (it reads an Actions artifact holding one .evidence
       # file); the link goes to the job summary, which a fork's read-only token can
-      # still write.
+      # still write. The `--last-failed` retry writes no pack, so this is the
+      # first, full pass, failures included.
       - name: Upload evidence
         id: evidence
         if: ${{ !cancelled() }}
