@@ -204,8 +204,9 @@ jobs:
       # The run's evidence pack, uploaded alone so the hosted viewer opens it
       # straight from this run (it reads an Actions artifact holding one .evidence
       # file); the link goes to the job summary, which a fork's read-only token can
-      # still write. The `--last-failed` retry writes no pack, so this is the
-      # first, full pass, failures included.
+      # still write. The `--last-failed` retry writes no pack, so the pack alone
+      # survives from the first, full pass (failures included); the retry still
+      # replaces that pass's report.json and artifacts/ in the output directory.
       - name: Upload evidence
         id: evidence
         if: ${{ !cancelled() }}
