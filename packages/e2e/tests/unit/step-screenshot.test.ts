@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { OperationContext, TargetSession } from '../../src/engine/surface.ts';
+import { TestError } from '../../src/internal/errors.ts';
 import type { ArtifactSink } from '../../src/run/fixtures.ts';
 import type { SessionSecrecy } from '../../src/run/secrecy.ts';
 import { captureStepScreenshot } from '../../src/run/step-screenshot.ts';
@@ -78,6 +79,13 @@ describe('captureStepScreenshot', () => {
     const { record } = await stepWith('screen.tap', sessionWith(async () => Promise.reject(new Error('page closed'))), clean);
     expect(record.status).toBe('passed');
     expect(record.events).toMatchObject([{ kind: 'engine', name: 'step.screenshot', status: 'failed' }]);
+    expect(record.artifacts).toEqual([]);
+  });
+
+  it('records nothing for a step before the app is open: there is no screen to capture', async () => {
+    const notOpen = new TestError('APP_NOT_OPEN', 'no app page is open');
+    const { record } = await stepWith('browser.route', sessionWith(async () => Promise.reject(notOpen)), clean);
+    expect(record.events).toEqual([]);
     expect(record.artifacts).toEqual([]);
   });
 
