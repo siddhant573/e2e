@@ -264,7 +264,7 @@ export function resolveConfig(
 
   const recordings = runRecordings(raw, cli, ci);
   const evidenceOn = evidenceEnabled(raw.evidence, env, cli);
-  const screenshot = runScreenshot(raw, cli, evidenceOn);
+  const screenshot = runScreenshot(raw, cli);
   const targets = resolveTargets(raw.targets, options.projectRoot, (target, where) => ({
     trace: targetRecording(recordings.trace, target.trace, `${where} trace`, 'trace'),
     video: targetRecording(recordings.video, target.video, `${where} video`, 'video'),
@@ -645,12 +645,12 @@ interface RunScreenshot {
 }
 
 /** The run's screenshot mode before any target speaks, from the flag and the config root. */
-function runScreenshot(raw: E2EConfig, cli: CliOverrides, evidence: boolean): RunScreenshot {
+function runScreenshot(raw: E2EConfig, cli: CliOverrides): RunScreenshot {
   return {
     cli: screenshotMode(cli.screenshot, '--screenshot'),
     config: screenshotMode(raw.screenshot, 'screenshot'),
-    // An evidence pack shows each step by its frame, so evidence asks for one per step unless someone chose otherwise.
-    fallback: evidence ? 'every-step' : 'on-failure',
+    // Evidence never changes this: an observability setting must not change how a run executes. A frame per step is asked for.
+    fallback: 'on-failure',
   };
 }
 

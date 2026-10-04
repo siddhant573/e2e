@@ -1464,15 +1464,17 @@ export interface E2EConfig {
    */
   video?: RecordingMode;
   /**
-   * Which steps the runner screenshots; default `every-step` while
-   * `evidence` is on, else `on-failure`. A target's `screenshot` wins over
-   * it, `--screenshot <mode>` over both, and a test's own `screenshot` over all.
+   * Which steps the runner screenshots; default `on-failure`. A target's
+   * `screenshot` wins over it, `--screenshot <mode>` over both, and a test's
+   * own `screenshot` over all. `every-step` gives an evidence pack a frame
+   * for every step.
    */
   screenshot?: ScreenshotMode;
   /**
    * The sealed `.evidence` pack each run writes: on by default. `false`, or
-   * `E2E_EVIDENCE=0` / `--no-evidence` for one run, writes none. While it is
-   * on, `screenshot` defaults to `every-step`.
+   * `E2E_EVIDENCE=0` / `--no-evidence` for one run, writes none. It never
+   * changes how a run executes: the pack holds the frames the run took, and
+   * `screenshot: 'every-step'` adds one for every step.
    */
   evidence?: boolean | EvidenceConfig;
   /**

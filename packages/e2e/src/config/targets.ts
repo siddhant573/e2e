@@ -29,7 +29,7 @@ export interface ResolvedTarget {
   readonly trace: ResolvedRecording;
   /** Which attempts on the target record a video: `--video`, else the target's `video`, else the config's, else `off`. A test's own `video` wins over it. */
   readonly video: ResolvedRecording;
-  /** Which steps the runner screenshots on the target: `--screenshot`, else the target's `screenshot`, else the config's, else `every-step` while evidence is on and `on-failure` when it is off. A test's own `screenshot` wins over it. */
+  /** Which steps the runner screenshots on the target: `--screenshot`, else the target's `screenshot`, else the config's, else `on-failure`. A test's own `screenshot` wins over it. */
   readonly screenshot: ScreenshotMode;
 }
 

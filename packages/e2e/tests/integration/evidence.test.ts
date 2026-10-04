@@ -54,10 +54,10 @@ function packIn(dir: string): string | undefined {
 
 describe('evidence pack', () => {
   it(
-    'is written by default, sealed, valid at L1, with a frame per step and the failure on its step',
+    'is written by default, sealed, valid at L1; with every-step a frame per step, and the failure on its step',
     async () => {
       const fake = createFakeEngine({ artifacts: true });
-      const { outcome, project } = await runProject({ 'tests/shop.e2e.ts': SUITE }, { appUrl: FAKE_APP_URL, config: fakeConfig(fake) });
+      const { outcome, project } = await runProject({ 'tests/shop.e2e.ts': SUITE }, { appUrl: FAKE_APP_URL, config: fakeConfig(fake, { screenshot: 'every-step' }) });
       try {
         const pack = packIn(project.dir);
         expect(pack).toBeDefined();
@@ -128,17 +128,33 @@ describe('evidence pack', () => {
   );
 
   it(
-    'is not written with --no-evidence, and the run then takes no step frames',
+    'takes no screenshot of its own: the default pack holds only the frames the run already took',
     async () => {
       const fake = createFakeEngine({ artifacts: true });
-      const { outcome, project } = await runProject(
+      const { outcome, project } = await runProject({ 'tests/shop.e2e.ts': SUITE }, { appUrl: FAKE_APP_URL, config: fakeConfig(fake) });
+      try {
+        expect(packIn(project.dir)).toBeDefined();
+        const passed = outcome.report.run.results.find((result) => result.titlePath.at(-1) === 'opens and taps')!;
+        expect(passed.attempts.at(-1)!.artifacts.filter((artifact) => artifact.kind === 'screenshot')).toEqual([]);
+        const failed = outcome.report.run.results.find((result) => result.titlePath.at(-1) === 'fails on a wrong count')!;
+        expect(failed.attempts.at(-1)!.failure?.screenshot).toBeDefined();
+      } finally {
+        project.cleanup();
+      }
+    },
+    60_000,
+  );
+
+  it(
+    'is not written with --no-evidence',
+    async () => {
+      const fake = createFakeEngine({ artifacts: true });
+      const { project } = await runProject(
         { 'tests/shop.e2e.ts': SUITE },
         { appUrl: FAKE_APP_URL, config: fakeConfig(fake), runOptions: { noEvidence: true } },
       );
       try {
         expect(packIn(project.dir)).toBeUndefined();
-        const passed = outcome.report.run.results.find((result) => result.titlePath.at(-1) === 'opens and taps')!;
-        expect(passed.attempts.at(-1)!.artifacts.filter((artifact) => artifact.kind === 'screenshot')).toEqual([]);
       } finally {
         project.cleanup();
       }
