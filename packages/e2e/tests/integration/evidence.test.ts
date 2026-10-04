@@ -133,11 +133,29 @@ describe('evidence pack', () => {
       const fake = createFakeEngine({ artifacts: true });
       const { outcome, project } = await runProject({ 'tests/shop.e2e.ts': SUITE }, { appUrl: FAKE_APP_URL, config: fakeConfig(fake) });
       try {
-        expect(packIn(project.dir)).toBeDefined();
+        const pack = packIn(project.dir);
+        expect(pack).toBeDefined();
         const passed = outcome.report.run.results.find((result) => result.titlePath.at(-1) === 'opens and taps')!;
         expect(passed.attempts.at(-1)!.artifacts.filter((artifact) => artifact.kind === 'screenshot')).toEqual([]);
         const failed = outcome.report.run.results.find((result) => result.titlePath.at(-1) === 'fails on a wrong count')!;
         expect(failed.attempts.at(-1)!.failure?.screenshot).toBeDefined();
+
+        // The pack itself: no frame on any step of the passed test, the failure frame on the failed step only.
+        const container = await openContainer(pack!);
+        const framesOf = async (fragment: string): Promise<boolean[]> => {
+          for (const id of await container.listTestIds()) {
+            if (!(await container.readResult(id))!.includes(fragment)) continue;
+            const folders = (await container.listDir(`tests/${id}/steps`)).filter((entry) => entry.isDir).map((entry) => entry.name).toSorted();
+            return Promise.all(folders.map((folder) => container.exists(`tests/${id}/steps/${folder}/screenshot.png`)));
+          }
+          throw new Error(`no test result mentions ${fragment}`);
+        };
+        const passedFrames = await framesOf('opens%20and%20taps');
+        expect(passedFrames).toHaveLength(2);
+        expect(passedFrames.every((frame) => !frame)).toBe(true);
+        const failedFrames = await framesOf('wrong%20count');
+        expect(failedFrames.at(-1)).toBe(true);
+        expect(failedFrames.slice(0, -1).every((frame) => !frame)).toBe(true);
       } finally {
         project.cleanup();
       }
