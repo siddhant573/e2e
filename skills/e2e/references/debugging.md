@@ -28,7 +28,7 @@ jq '.run.results[] | select(.selected and .status != "passed") | .attempts[-1]
    (recorded as `skipped`).
 4. Artifacts, under `.e2e/artifacts/`: `failure/screen.txt`
    and the engine's screenshot per failed attempt (and one per passed step
-   under `screenshot: 'every-step'`, the default while evidence is on); the
+   under `screenshot: 'every-step'`); the
    run's sealed pack in `.e2e/evidence/`; a Playwright trace per
    traced attempt (`npx playwright show-trace <file>`); downloads; with
    `--video` the recording (`video/video.webm` in a local browser, each

@@ -113,9 +113,10 @@ export interface E2EConfig {
    */
   video?: RecordingMode;
   /**
-   * Which steps the runner screenshots; default `every-step` while
-   * `evidence` is on, else `on-failure`. A target's `screenshot` wins over
-   * it, `--screenshot <mode>` over both, and a test's own `screenshot` over all.
+   * Which steps the runner screenshots; default `on-failure`. A target's
+   * `screenshot` wins over it, `--screenshot <mode>` over both, and a test's
+   * own `screenshot` over all. `every-step` gives an evidence pack a frame
+   * for every step.
    */
   screenshot?: ScreenshotMode;
   /**
@@ -659,8 +660,8 @@ export type ScreenshotMode = 'on-failure' | 'every-step' | 'off';
 
 | Mode | Screenshots |
 | --- | --- |
-| `on-failure` | one when an attempt fails, as `failure.screenshot` in the report; the default when [`evidence`](#evidence) is off |
-| `every-step` | also one after every top-level step that passes, attached to that step; the default while `evidence` is on |
+| `on-failure` (default) | one when an attempt fails, as `failure.screenshot` in the report |
+| `every-step` | also one after every top-level step that passes, attached to that step, so an [evidence pack](#evidence) has a frame for every step |
 | `off` | none from the runner; the failure screen text is still kept |
 
 Under `every-step` the frame is taken once the step's work is done, so a
@@ -696,8 +697,10 @@ evidence: { outDir: 'test-results/evidence' },
 Every `e2e run` writes one sealed `.evidence` pack, `<output>/evidence/<runId>.evidence`,
 in the open format [`@testmuai/evidence-cli`](https://github.com/LambdaTest/evidence-cli)
 defines: one folder per test with a `test.json` naming it (id, title path, file, line, tags; never its source, which can hold a secret as a plain string), a `result.yaml` of its
-steps and verdict, a frame for each step the runner could capture (none with `screenshot: 'off'`, after a secret fill, or on an engine without screenshots), a `failure.yaml` on the step a failure
-landed on, and logs. The pack is a zip that tools built on that format read
+steps and verdict, the frames the run took (a failure screenshot, `agent.assert`
+and `app.screenshot()` frames, and one per step under `screenshot: 'every-step'`;
+none after a secret fill), a `failure.yaml` on the step a failure landed on, and
+logs. The pack is a zip that tools built on that format read
 and validate, the run's results as one shareable file.
 
 ```ts
@@ -713,9 +716,10 @@ export interface EvidenceConfig {
 
 `evidence: false` (or `{ enabled: false }`) writes none, and so does
 `E2E_EVIDENCE=0` (`false` and `off` too) or `--no-evidence` for one run,
-whatever the config says. While evidence is on, [`screenshot`](#screenshot)
-defaults to `every-step`; set `screenshot` to keep the pack without the
-per-step cost.
+whatever the config says. Evidence never changes how a run executes: the
+pack holds what the run already recorded and takes no screenshot of its own.
+For a frame on every step, set [`screenshot: 'every-step'`](#screenshot) (or
+pass `--screenshot every-step`), which costs one engine screenshot per step.
 
 How a run maps onto the pack:
 

@@ -57,16 +57,14 @@ describe('evidence option', () => {
   });
 });
 
-describe('the screenshot default under evidence', () => {
-  it('is every-step while evidence is on, on-failure when it is off', () => {
-    expect(resolve().targets[0]!.screenshot).toBe('every-step');
+describe('evidence and the screenshot mode', () => {
+  it('leaves the screenshot default alone: turning observability on does not change how a run executes', () => {
+    expect(resolve().targets[0]!.screenshot).toBe('on-failure');
     expect(resolve({ evidence: false }).targets[0]!.screenshot).toBe('on-failure');
-    expect(resolve({}, {}, { evidence: false }).targets[0]!.screenshot).toBe('on-failure');
   });
 
-  it('gives way to a mode somebody set', () => {
-    expect(resolve({ screenshot: 'on-failure' }).targets[0]!.screenshot).toBe('on-failure');
-    expect(resolve({ targets: [target({ screenshot: 'off' })] }).targets[0]!.screenshot).toBe('off');
-    expect(resolve({}, {}, { screenshot: 'off' }).targets[0]!.screenshot).toBe('off');
+  it('takes a frame per step only when someone asks for it', () => {
+    expect(resolve({ screenshot: 'every-step' }).targets[0]!.screenshot).toBe('every-step');
+    expect(resolve({}, {}, { screenshot: 'every-step' }).targets[0]!.screenshot).toBe('every-step');
   });
 });

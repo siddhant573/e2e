@@ -125,7 +125,7 @@ describe('a secret in an engine option', () => {
     const shot = resultByTitle(outcome, 'takes a screenshot of the page, an engine-held secret tainting no pixels');
     expect(shot.status, JSON.stringify(shot.attempts[0]?.error)).toBe('passed');
     const failure = resultByTitle(outcome, 'fails on the echoed Authorization header').attempts[0]!;
-    expect(failure.failure?.screenshot).toBeDefined();
+    expect(failure.artifacts.filter((artifact) => artifact.kind === 'screenshot')).toHaveLength(1);
     expect(contentsUnder(`${project.dir}/.e2e`).some(([name]) => name.includes('.zip!screencast/'))).toBe(true);
     const download = resultByTitle(outcome, 'downloads the echoed headers').attempts[0]!.artifacts.find((artifact) => artifact.kind === 'download')!;
     expect(download.redaction).toBe('complete');
