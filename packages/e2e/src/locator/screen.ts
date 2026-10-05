@@ -317,7 +317,7 @@ class LocatorImpl extends ScreenImpl implements Locator {
   }
 
   /**
-   * Acts through `act`, then records `argument` only when the node it resolved
+   * Acts through `act`, recording `argument` only when the node it resolved
    * to was read, is not secure, and `takesInput` says the input lands on that
    * node itself. Anything else records `<withheld>`: an engine may send input
    * on to another element (a fill on a `<label>` goes to its control, which can
@@ -329,13 +329,14 @@ class LocatorImpl extends ScreenImpl implements Locator {
     takesInput: (node: SemanticNode) => boolean,
     act: (inspect: NodeInspector) => Promise<void>,
   ): Promise<void> {
-    let shareable = false;
     const record = this.recordTarget();
+    // Withheld until the node is seen, and decided before the input goes in, so a step that fails midway keeps it.
+    this.context.steps.amendArgument('<withheld>');
     await act((node) => {
-      shareable = node !== null && node.states?.secure !== true && takesInput(node);
+      const shareable = node !== null && node.states?.secure !== true && takesInput(node);
+      this.context.steps.amendArgument(shareable ? argument : '<withheld>');
       record(node);
     });
-    this.context.steps.amendArgument(shareable ? argument : '<withheld>');
   }
 
   /** Records the box of the node an action resolved to, and the point it acted at when it was positioned. */

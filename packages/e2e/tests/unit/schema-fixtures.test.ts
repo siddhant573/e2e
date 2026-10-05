@@ -74,7 +74,7 @@ describe.each(schemas)('%s schema', (name) => {
 
     it("types a step's argument and target: a string of at most 1024 characters, and a box or point of numbers", () => {
       const report = readJson('fixtures', 'report-v1.valid.json') as { run: { results: { attempts: { steps: Record<string, unknown>[] }[] }[] } };
-      const step = report.run.results.flatMap((result) => result.attempts).flatMap((attempt) => attempt.steps).find((entry) => 'argument' in entry)!;
+      const step = report.run.results.flatMap((result) => result.attempts).flatMap((attempt) => attempt.steps).find((entry) => 'target' in entry)!;
       expect(validate(report)).toBe(true);
       for (const [key, bad] of [
         ['argument', 42],

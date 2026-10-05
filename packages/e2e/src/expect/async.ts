@@ -203,7 +203,7 @@ class AsyncExpectationImpl implements AsyncExpectation {
           );
         },
       });
-    }, { verifies: true, argument: spec.describeExpected });
+    }, { verifies: true, argument: `${this.negated ? 'not ' : ''}${spec.describeExpected}` });
   }
 
   /**

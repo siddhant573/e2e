@@ -62,6 +62,7 @@ test('records arguments', async ({ app, screen }) => {
   await screen.getByLabel('Password').fill(credentials.user('member').password);
   await screen.getByLabel('Username').press('Enter');
   await expect(screen.getByRole('button')).toHaveCount(1);
+  await expect(screen.getByRole('button')).not.toHaveCount(2);
 });
 `;
 
@@ -84,6 +85,7 @@ describe('step argument', () => {
           ['locator.fill', '<secret:member.password>'],
           ['locator.press', 'Enter'],
           ['expect.toHaveCount', expect.stringContaining('1')],
+          ['expect.not.toHaveCount', expect.stringMatching(/^not .*2/)],
         ]);
         expect(JSON.stringify(outcome.report)).not.toContain(PASSWORD);
         // The secret fill records where it acted like any other fill: the box is not secret.

@@ -256,6 +256,8 @@ export class ActionDispatcher {
       if (call.mutates) {
         this.accounting.reserveAction();
         this.options.trace()?.recordGap(call.name);
+        // A project tool acts on no node the step knows, so the step has no target once one runs.
+        this.runtime.steps.amendTarget(undefined);
       }
       const value = await instrumentPhase(
         this.runtime,
@@ -631,8 +633,8 @@ export class ActionDispatcher {
     let { node, observation } = resolved;
     for (let relocations = 0; ; relocations += 1) {
       const placement = this.placementOf({ node, observation });
-      // A step that acts more than once records where its last action landed.
-      if (node.rect !== undefined) this.runtime.steps.amendTarget({ box: { x: node.rect.x, y: node.rect.y, width: node.rect.width, height: node.rect.height } });
+      // A step that acts more than once records where its last action landed; a relocated node with no box leaves none.
+      this.runtime.steps.amendTarget(node.rect === undefined ? undefined : { box: { x: node.rect.x, y: node.rect.y, width: node.rect.width, height: node.rect.height } });
       try {
         return { ...(await perform(node, observation)), ...placement };
       } catch (cause) {

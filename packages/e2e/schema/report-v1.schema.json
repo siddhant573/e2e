@@ -269,7 +269,7 @@
       "required": ["id", "index", "kind", "api", "label", "source", "status", "startedAt", "durationMs", "events", "artifacts"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "argument": { "type": "string", "maxLength": 1024, "description": "What the step was given beside its target, redacted: typed text, a key, an expected value, or <secret:name>." },
+        "argument": { "type": "string", "maxLength": 1024, "description": "What the step was given beside its target, redacted: typed text, a key, an expected value, or <secret:name>. The producer keeps at most 1024 UTF-8 bytes; JSON Schema bounds characters, so this is the looser bound every produced value meets." },
         "target": {
           "type": "object",
           "additionalProperties": false,
