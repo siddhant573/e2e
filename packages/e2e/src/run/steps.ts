@@ -363,10 +363,12 @@ export class StepRecorder {
     if (current !== undefined) current.argument = this.boundArgument(argument);
   }
 
-  /** Records where the running step acted; outside a running step this is a no-op. */
-  amendTarget(target: StepTarget): void {
+  /** Records where the running step acted, or forgets it with undefined; outside a running step this is a no-op. */
+  amendTarget(target: StepTarget | undefined): void {
     const current = this.current();
-    if (current !== undefined) current.target = target;
+    if (current === undefined) return;
+    if (target === undefined) delete current.target;
+    else current.target = target;
   }
 
   /** An argument as the record keeps it: redacted, control characters replaced, and bounded. */

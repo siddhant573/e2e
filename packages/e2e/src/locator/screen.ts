@@ -10,6 +10,7 @@ import { asEngineError, TestError } from '../internal/errors.ts';
 import { requireFinitePoint } from '../internal/geometry.ts';
 import { isPlainObject, rejectUnknownOptions } from '../internal/options.ts';
 import { realmSlot } from '../internal/realm-slot.ts';
+import { isEditable } from '../internal/roles.ts';
 import { obj } from '../internal/objects.ts';
 import { isTextMatch, normalizeText } from '../internal/text.ts';
 import type {
@@ -310,20 +311,31 @@ class LocatorImpl extends ScreenImpl implements Locator {
     return describeExpression(this.expression);
   }
 
+  /** Types `text` through `act`; the text is recorded only when the node is itself a text field that is not secure. */
+  private typedInto(text: string, act: (inspect: NodeInspector) => Promise<void>): Promise<void> {
+    return this.recordedInto(JSON.stringify(text), isEditable, act);
+  }
+
   /**
-   * Types `text` through `act`, then records it as the step's argument only
-   * when the field it went into was read and is not secure. A secure field,
-   * or one the read could not see, records `<withheld>`: plain text typed into
-   * a password field is as private as a secret.
+   * Acts through `act`, then records `argument` only when the node it resolved
+   * to was read, is not secure, and `takesInput` says the input lands on that
+   * node itself. Anything else records `<withheld>`: an engine may send input
+   * on to another element (a fill on a `<label>` goes to its control, which can
+   * be a password field), and what reached a secure field is as private as a
+   * secret.
    */
-  private async typedInto(text: string, act: (inspect: NodeInspector) => Promise<void>): Promise<void> {
+  private async recordedInto(
+    argument: string,
+    takesInput: (node: SemanticNode) => boolean,
+    act: (inspect: NodeInspector) => Promise<void>,
+  ): Promise<void> {
     let shareable = false;
     const record = this.recordTarget();
     await act((node) => {
-      shareable = node !== null && node.states?.secure !== true;
+      shareable = node !== null && node.states?.secure !== true && takesInput(node);
       record(node);
     });
-    this.context.steps.amendArgument(shareable ? JSON.stringify(text) : '<withheld>');
+    this.context.steps.amendArgument(shareable ? argument : '<withheld>');
   }
 
   /** Records the box of the node an action resolved to, and the point it acted at when it was positioned. */
@@ -353,6 +365,13 @@ class LocatorImpl extends ScreenImpl implements Locator {
     options: ActionOptions | undefined,
   ): Promise<void> {
     rejectUnknownOptions(verb, options, ['timeout']);
+    if (typeof action !== 'function' && action.kind === 'press') {
+      // A key is input: recorded only when it lands on the node itself, never on a secure field.
+      const key = action.key;
+      return this.action(`locator.${verb}`, () =>
+        this.recordedInto(key, isKeyTarget, (inspect) => this.context.engine.perform(this.expression, action, options?.timeout, inspect)),
+      );
+    }
     return this.action(
       `locator.${verb}`,
       () => this.context.engine.perform(this.expression, action, options?.timeout, this.recordTarget()),
@@ -436,6 +455,7 @@ class LocatorImpl extends ScreenImpl implements Locator {
             this.expression,
             { kind: 'fill', value: await this.context.secrets.resolve(value), sensitive },
             options?.timeout,
+            this.recordTarget(),
           ),
         `<secret:${value.name}>`,
       );
@@ -531,6 +551,7 @@ class LocatorImpl extends ScreenImpl implements Locator {
         this.expression,
         { kind: 'swipe', direction: options.direction, ...(options.momentum !== undefined ? { momentum: options.momentum } : {}) },
         options.timeout,
+        this.recordTarget(),
       ),
     );
   }
@@ -746,8 +767,6 @@ function requireModifiers(value: unknown, api: string): { modifiers?: readonly K
 /** What a locator action was given beside its node, as a step argument; undefined for one that takes nothing. */
 function actionArgument(action: LocatorAction): string | undefined {
   switch (action.kind) {
-    case 'press':
-      return action.key;
     case 'selectOption':
       return JSON.stringify(action.value);
     case 'setInputFiles':
@@ -755,4 +774,19 @@ function actionArgument(action: LocatorAction): string | undefined {
     default:
       return undefined;
   }
+}
+
+/**
+ * Roles a key press lands on directly: text fields and the controls that are
+ * their own focus target. Anything else (a label, plain text) can hand focus
+ * to another element, so its key is withheld.
+ */
+const KEY_TARGET_ROLES: ReadonlySet<string> = new Set([
+  'button', 'link', 'checkbox', 'radio', 'switch', 'tab', 'menuitem', 'menuitemcheckbox', 'menuitemradio',
+  'option', 'slider', 'spinbutton', 'listbox', 'treeitem', 'gridcell',
+]);
+
+/** True for a node a key press lands on itself. */
+function isKeyTarget(node: SemanticNode): boolean {
+  return isEditable(node) || KEY_TARGET_ROLES.has(node.role ?? '');
 }

@@ -551,6 +551,8 @@ export class ActionDispatcher {
 
   private async runActionNow(name: GrammarActionName, body: () => Promise<RecordableAction>): Promise<void> {
     this.accounting.reserveAction();
+    // The step's target is its last action's: an action with no node or point (a scroll, back, a wait) leaves none.
+    this.runtime.steps.amendTarget(undefined);
     const redaction = { redact: this.runtime.redact, redactCut: this.runtime.redactCut };
     let action: RecordableAction;
     try {

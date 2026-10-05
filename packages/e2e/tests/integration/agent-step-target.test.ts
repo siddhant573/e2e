@@ -21,7 +21,7 @@ describe('agent step target', () => {
     await app?.close();
   });
 
-  it('records the box of the node the agent tapped, and the viewport it is measured against', async () => {
+  it('records the box of the node the agent tapped', async () => {
     const executor: StepExecutor = {
       name: 'tap-executor',
       async runStep(context: StepExecutorContext) {
